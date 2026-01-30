@@ -1,4 +1,9 @@
 HOLA EDUARDO TE VOY A SALUDAR
+<<<<<<< HEAD
+BUENAS TARDES
+EDU
+=======
 HOLLAAAAAAA
 soy juanma soy muy listo
 vfgcfgcfgcgf
+>>>>>>> eb695fff4d69095726fdabe5774818182901ef08
