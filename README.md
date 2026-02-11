@@ -9,3 +9,10 @@ Para la creación de la base de datos hemos planteado un esquema entidad relaci�
 PARA CONTROLAR EL CONTENEDOR HAY QEU AÑADIR NUESTRO USUARIO AL GRUPO DOCKER:
 sudo usermod -aG docker $USER
 newgrp docker
+
+PARA CONTROLAR LA API (PROBAR ENDPOINTS TANTO GET COMO POST...), VER DOCUMENTACIÓN:
+http://localhost:8000/docs
+->>>APARECEN LOS QUE VAMOS PONIENDO EN EL MAIN!!
+
+
+docker compose up -d --build ->a plicar cambios en la configuración (como puertos en el docker-compose.yml) o en la imagen (como cambios en el Dockerfile)

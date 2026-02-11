@@ -45,7 +45,7 @@ services:
       # para el hot reload, creamos enlace entre carpeta api local y /app del contenedor
       # (si editamos un fichero en local y guardamos, se cambia instantáneamente en el contenedor)
       # en el dockerfile ponemos --reload en uvicorn para que vigile los ficheros de carpeta api
-      - /api:/app
+      - ./api/app:/app
     environment:
       # Host (PONEMOS EL NOMBRE DEL SERVICIO POSTGRES!! -> @localhost falla porque el contenedor de la api no tiene bbdd)
       DATABASE_URL: postgresql://paquito:paquito@db-postgres:5432/db
