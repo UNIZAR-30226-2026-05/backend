@@ -5,3 +5,7 @@ Para la creación de la base de datos hemos planteado un esquema entidad relaci�
 - **Usuarios:** recoge la información relativa a los usuarios almacenados en el sistema, sus amistades y las sesiones activas
 
 - **Partidas:** compuesta por toda aquella información sobre partidas activas en el servidor. Dicha información es principalmente volátil ya que no se pretende que este almacenada más allá de la duración de la partida
+
+PARA CONTROLAR EL CONTENEDOR HAY QEU AÑADIR NUESTRO USUARIO AL GRUPO DOCKER:
+sudo usermod -aG docker $USER
+newgrp docker

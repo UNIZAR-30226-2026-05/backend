@@ -1,0 +1,57 @@
+services:
+  db-postgres:
+    image: postgres:16
+    container_name: bbdd
+    restart: always #Cuando lo pongamos en el servidor queremos que se inicie siempre
+    environment:
+      POSTGRES_USER: paquito
+      POSTGRES_PASSWORD: paquito
+      POSTGRES_DB: db
+    # postgres siempre usa puerto interno 5432
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persistencia de datos (La BBDD con sus tablas, datos, esquemas...)
+      # PAra este contenedor, usa el disco duro postgres_data que definimos al final
+      - postgres_data:/var/lib/postgresql/data
+      # (mapeo_local:ruta_dentro_contenedor)
+
+      # Script de inicialización (ruta local del fichero inicialización)
+      # Cuando el contenedor arranca por primera vez (y la base de datos está vacía), busca archivos .sql 
+      # en la carpeta /docker-entrypoint-initdb.d/. Si encuentra uno, lo ejecuta automáticamente.
+      - ./creacionTablas.sql:/docker-entrypoint-initdb.d/creacionTablas.sql
+
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    # Adminer siempre usa puerto interno 8080
+    ports: 
+      - "8090:8080" #Exponemos el puerto 8080 del contenedor y lo hacemos accesible
+                    # en el puerto 8090 del host (Servidor/portaitl)
+    # 'depends_on' asegura que el contenedor de la db se inicie antes que este.
+    depends_on:
+      - db-postgres
+
+
+  api:
+    # Creamos nuestra propia imagen (Indicaciones de cómo instlar python y sus librerías)
+    build: ./api #Coge el dockerfile de esa carpeta
+    container_name: fastapi
+    restart: always
+    ports:
+      - "8080:8000" #Accedemos desde el navegador con puerto 8080
+    volumes:
+      # para el hot reload, creamos enlace entre carpeta api local y /app del contenedor
+      # (si editamos un fichero en local y guardamos, se cambia instantáneamente en el contenedor)
+      # en el dockerfile ponemos --reload en uvicorn para que vigile los ficheros de carpeta api
+      - /api:/app
+    environment:
+      # Host (PONEMOS EL NOMBRE DEL SERVICIO POSTGRES!! -> @localhost falla porque el contenedor de la api no tiene bbdd)
+      DATABASE_URL: postgresql://paquito:paquito@db-postgres:5432/db
+    depends_on:
+      - db-postgres
+
+#volumen creado para la BBDD
+volumes:
+  postgres_data:
