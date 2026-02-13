@@ -20,6 +20,15 @@ router = APIRouter()
 #Response model es el modelo de salida también definidio en pydantic
 @router.post("/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
 def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de pydantic
+    """
+    Crea un nuevo usuario en el sistema.
+
+    - **nombre**: nombre único del usuario
+    - **password**: contraseña del usuario
+
+    Devuelve la información pública del usuario creado, es decir, su nombre.
+    """
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     
