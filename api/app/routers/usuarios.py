@@ -8,10 +8,10 @@ import psycopg2
 router = APIRouter()
 
 # ---------------------------------------------------------
-# INSERTAR (POST)
+# INSERTAR 1 USUARIO (POST)
 # ---------------------------------------------------------
 #Response model es el modelo de salida también definidio en pydantic
-@router.post("/usuarios/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
+@router.post("/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
 def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de pydantic
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -47,9 +47,32 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
         conn.close()
 
 # ---------------------------------------------------------
+# LEER TODOS USERS (GET)
+# ---------------------------------------------------------
+@router.get("/", response_model=List[UsuarioPublico])
+def obtener_todos_usuarios(nombre: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = "SELECT nombre FROM USUARIOS.USUARIO"
+        cursor.execute(query)
+        
+        resultado = cursor.fetchall() # Trae TODOS
+        
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+            
+        return resultado
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+# ---------------------------------------------------------
 # LEER UNO (GET)
 # ---------------------------------------------------------
-@router.get("/usuarios/{nombre}", response_model=UsuarioPublico)
+@router.get("/{nombre}", response_model=UsuarioPublico)
 def obtener_usuario(nombre: str):
     conn = get_db_connection()
     cursor = conn.cursor()
