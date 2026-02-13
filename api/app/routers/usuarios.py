@@ -1,13 +1,17 @@
-from fastapi import FastAPI, HTTPException, status
-from typing import List
+from schemas import UsuarioPublico, UsuarioRegistro, MinijuegoInfo 
+from database import get_db_connection
 
-app = FastAPI()
+from fastapi import APIRouter, HTTPException, status
+from typing import List
+import psycopg2
+
+router = APIRouter()
 
 # ---------------------------------------------------------
 # INSERTAR (POST)
 # ---------------------------------------------------------
 #Response model es el modelo de salida también definidio en pydantic
-@app.post("/usuarios/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
+@router.post("/usuarios/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
 def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de pydantic
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -45,7 +49,7 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
 # ---------------------------------------------------------
 # LEER UNO (GET)
 # ---------------------------------------------------------
-@app.get("/usuarios/{nombre}", response_model=UsuarioPublico)
+@router.get("/usuarios/{nombre}", response_model=UsuarioPublico)
 def obtener_usuario(nombre: str):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -69,7 +73,7 @@ def obtener_usuario(nombre: str):
 # ---------------------------------------------------------
 # EJEMPLO 3: LEER VARIOS (GET) 
 # ---------------------------------------------------------
-@app.get("/juegos/", response_model=List[MinijuegoInfo])
+@router.get("/juegos/", response_model=List[MinijuegoInfo])
 def listar_minijuegos():
     conn = get_db_connection()
     cursor = conn.cursor()

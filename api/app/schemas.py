@@ -26,7 +26,7 @@ class UsuarioRegistro(BaseModel):
     password: str = Field(..., min_length=6, example="secreto123")
 
 class CrearPartida(BaseModel):
-    # No pedimos ID porque es autoincremental o generado
+    
     minijuego_inicial: str
 
 # --- MODELOS DE SALIDA (Lo que devolvemos al frontend) ---
