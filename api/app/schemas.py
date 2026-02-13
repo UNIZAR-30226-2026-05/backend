@@ -33,7 +33,7 @@ class CrearPartida(BaseModel):
 
 class UsuarioPublico(BaseModel):
     nombre: str
-    # OJO: NO incluimos el password aquí. Pydantic lo filtrará automáticamente.
+    # NO incluimos el password aquí!
     
     class Config:
         from_attributes = True # Esto ayuda a que Pydantic entienda diccionarios

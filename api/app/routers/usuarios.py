@@ -7,6 +7,13 @@ import psycopg2
 
 router = APIRouter()
 
+
+# =================================================================================================================================================
+# =================================================================================================================================================
+#                                                      ENDPOINTS USUARIOS
+# =================================================================================================================================================
+# =================================================================================================================================================
+
 # ---------------------------------------------------------
 # INSERTAR 1 USUARIO (POST)
 # ---------------------------------------------------------
@@ -50,7 +57,7 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
 # LEER TODOS USERS (GET)
 # ---------------------------------------------------------
 @router.get("/", response_model=List[UsuarioPublico])
-def obtener_todos_usuarios(nombre: str):
+def obtener_todos_usuarios():
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -92,9 +99,52 @@ def obtener_usuario(nombre: str):
         cursor.close()
         conn.close()
 
+
+# =================================================================================================================================================
+# =================================================================================================================================================
+#                                                      ENDPOINTS AMIGOS
+# =================================================================================================================================================
+# =================================================================================================================================================
+
+# ---------------------------------------------------------
+# LEER TODOS AMIGOS DE UN USER (GET)
+# ---------------------------------------------------------
+@router.get("/{nombre_user}", response_model=List[UsuarioPublico])
+def obtener_todos_amigos_user(nombre_user: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = """
+        (SELECT usuario1 AS nombre
+        FROM USUARIOS.AMIGOS 
+        WHERE usuario2 = %s)
+        
+        UNION
+        
+        (SELECT usuario2 AS nombre
+        FROM USUARIOS.AMIGOS 
+        WHERE usuario1 = %s)
+    """
+
+        cursor.execute(query, (nombre_user, nombre_user))
+        
+        resultado = cursor.fetchall() # Trae TODOS
+        
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+            
+        return resultado
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
 """ESTE ES DE MINIJUEGOS PERO PARA QUE VEAIS QUE CUANDO DEVUELVE LISTA HAY QUE PONER EL FETCHALL Y TIPO LISTA"""
 # ---------------------------------------------------------
-# EJEMPLO 3: LEER VARIOS (GET) 
+# LEER VARIOS (GET) 
 # ---------------------------------------------------------
 @router.get("/juegos/", response_model=List[MinijuegoInfo])
 def listar_minijuegos():
