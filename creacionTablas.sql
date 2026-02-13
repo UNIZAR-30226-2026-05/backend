@@ -165,3 +165,20 @@ CREATE TRIGGER trg_check_solicitud_inversa
 BEFORE INSERT ON USUARIOS.SOLICITUD
 FOR EACH ROW
 EXECUTE FUNCTION usuarios.check_solicitud_inversa();
+
+-- Eliminar la solicitud pendiente si se acepta la amistad
+CREATE OR REPLACE FUNCTION usuarios.eliminar_solicitud_pendiente()
+RETURNS trigger AS $$
+BEGIN
+    DELETE FROM USUARIOS.SOLICITUD
+    WHERE (solicitante = NEW.usuario1 AND solicitado = NEW.usuario2)
+       OR (solicitante = NEW.usuario2 AND solicitado = NEW.usuario1);
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_eliminar_solicitud_pendiente
+AFTER INSERT ON USUARIOS.AMIGOS
+FOR EACH ROW
+EXECUTE FUNCTION usuarios.eliminar_solicitud_pendiente();
