@@ -20,7 +20,6 @@ CREATE TABLE USUARIOS.AMIGOS(
     usuario2 VARCHAR(50),
     CONSTRAINT fk_usuario1 FOREIGN KEY(usuario1) REFERENCES USUARIOS.USUARIO(nombre) ON DELETE CASCADE,
     CONSTRAINT fk_usuario2 FOREIGN KEY(usuario2) REFERENCES USUARIOS.USUARIO(nombre) ON DELETE CASCADE,
-    --CONSTRAINT amigos_unicos CHECK (usuario1 < usuario2),
     CONSTRAINT usuarios_diferentes CHECK (usuario1 <> usuario2),
     PRIMARY KEY(usuario1, usuario2)
 );
@@ -30,7 +29,6 @@ CREATE TABLE USUARIOS.SOLICITUD(
     solicitado VARCHAR(50),
     CONSTRAINT fk_solicitante FOREIGN KEY(solicitante) REFERENCES USUARIOS.USUARIO(nombre) ON DELETE CASCADE,
     CONSTRAINT fk_solicitado FOREIGN KEY(solicitado) REFERENCES USUARIOS.USUARIO(nombre) ON DELETE CASCADE,
-    --CONSTRAINT amigos_unicos CHECK (solicitante < solicitado),
     CONSTRAINT usuarios_diferentes CHECK (solicitante <> solicitado),
     PRIMARY KEY(solicitante,solicitado)
 );
@@ -118,3 +116,52 @@ CREATE TABLE PARTIDAS.JUGANDO(
     CONSTRAINT numeroCorrecto CHECK ( numero >= 1  and numero <= 4 ),
     PRIMARY KEY (nombre_jugador, id_partida)
 );
+
+/* TRIGGERS */
+-- Evitar relaciones de amistad duplicadas en orden inverso
+CREATE OR REPLACE FUNCTION usuarios.check_amigos_inversos()
+RETURNS trigger AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM USUARIOS.AMIGOS
+        WHERE usuario1 = NEW.usuario2
+          AND usuario2 = NEW.usuario1
+    ) THEN
+        RAISE EXCEPTION
+            'La relación de amistad (% , %) ya existe en orden inverso',
+            NEW.usuario2, NEW.usuario1;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_check_amigos_inversos
+BEFORE INSERT ON USUARIOS.AMIGOS
+FOR EACH ROW
+EXECUTE FUNCTION usuarios.check_amigos_inversos();
+
+-- Evitar solicitudes de amistad duplicadas en orden inverso
+CREATE OR REPLACE FUNCTION usuarios.check_solicitud_inversa()
+RETURNS trigger AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM USUARIOS.SOLICITUD
+        WHERE solicitante = NEW.solicitado
+          AND solicitado  = NEW.solicitante
+    ) THEN
+        RAISE EXCEPTION
+            'Ya existe una solicitud inversa entre % y %',
+            NEW.solicitado, NEW.solicitante;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_check_solicitud_inversa
+BEFORE INSERT ON USUARIOS.SOLICITUD
+FOR EACH ROW
+EXECUTE FUNCTION usuarios.check_solicitud_inversa();

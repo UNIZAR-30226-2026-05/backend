@@ -20,6 +20,7 @@ services:
       # Cuando el contenedor arranca por primera vez (y la base de datos está vacía), busca archivos .sql 
       # en la carpeta /docker-entrypoint-initdb.d/. Si encuentra uno, lo ejecuta automáticamente.
       - ./creacionTablas.sql:/docker-entrypoint-initdb.d/creacionTablas.sql
+      - ./poblarTablas.sql:/docker-entrypoint-initdb.d/poblarTablas.sql
 
 
   adminer:
