@@ -79,8 +79,7 @@ CREATE TABLE JUEGO.C_MINI(
 
 CREATE TABLE JUEGO.C_OBJ(
     numero INTEGER PRIMARY KEY,
-    objeto VARCHAR(50) NOT NULL,
-    CONSTRAINT fk_objeto FOREIGN KEY(objeto) REFERENCES JUEGO.OBJETO(nombre),
+    ruleta BIT NOT NULL,    -- 0 para intercambio, 1 para ruleta
     CONSTRAINT numero_correcto CHECK ( numero > 0 and numero < 72 )
 );
 
