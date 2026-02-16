@@ -1,0 +1,123 @@
+from schemas import JoinPartida
+from database import get_db_connection
+
+from fastapi import APIRouter, HTTPException, status
+from typing import List
+import psycopg2
+
+router = APIRouter()
+
+# ---------------------------------------------------------
+# OBTENER PARTIDAS ACTIVAS (GET)
+# ---------------------------------------------------------
+@router.get("/", response_model=List[int])
+def obtener_partidas_activas():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = "SELECT id FROM PARTIDAS.PARTIDA_ACTIVA"
+        cursor.execute(query)
+        
+        resultado = cursor.fetchall() # Trae TODOS
+        
+        if not resultado:
+            raise HTTPException(status_code=404, detail="No hay partidas activas")
+            
+        return [row['id'] for row in resultado]  # Devolver solo los IDs
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ---------------------------------------------------------
+# CREAR PARTIDA (POST)
+# ---------------------------------------------------------
+@router.post("/crear_partida", status_code=status.HTTP_201_CREATED, response_model=int)
+def crear_partida(usuario: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Verificar que el usuario existe
+        query_usuario = "SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s"
+        cursor.execute(query_usuario, (usuario,))
+        resultado_usuario = cursor.fetchone()
+        
+        if not resultado_usuario:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Crear partida activa con valores iniciales
+        query_crear_partida = "INSERT INTO PARTIDAS.PARTIDA_ACTIVA (hay_barrera, turno, minijuego, ult_resultado) VALUES (%s, 0, NULL, NULL) " \
+                              "RETURNING id"
+        hay_barrera = [False] * 72  # Inicializar con 72 barreras falsas
+        cursor.execute(query_crear_partida, (hay_barrera,))
+        nueva_partida_id = cursor.fetchone()['id']  # Obtener el ID de la nueva partida
+
+        # Asignar el jugador a la partida creada
+        query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
+                                "VALUES (%s, %s, NULL, 0, 1, 1)"
+
+        cursor.execute(query_crear_jugando, (usuario, nueva_partida_id,))
+
+        conn.commit()
+        return nueva_partida_id
+        
+    except psycopg2.IntegrityError as e:
+        conn.rollback() #  deshacer si hay error
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+# ---------------------------------------------------------
+# UNIRSE A PARTIDA (POST)
+# ---------------------------------------------------------
+@router.post("/unirse_partida", status_code=status.HTTP_201_CREATED, response_model=int)
+def unirse_partida(usuario: JoinPartida):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # VIGILAR QUE UNA PARTIDA NO SE LLENE
+
+        # Verificar que el usuario existe
+        query_usuario = "SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s"
+        cursor.execute(query_usuario, (usuario.usuario,))
+        resultado_usuario = cursor.fetchone()
+        
+        if not resultado_usuario:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Verificar que existe la partida
+        query_partida = "SELECT id FROM PARTIDAS.PARTIDA_ACTIVA WHERE id = %s"
+        cursor.execute(query_partida, (usuario.id_partida,))
+        resultado_partida = cursor.fetchone()
+        
+        if not resultado_partida:
+            raise HTTPException(status_code=404, detail="Partida no encontrada")
+
+        # Asignar el jugador a la partida creada
+        query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
+                                "VALUES (%s, %s, NULL, 0, 1, 1)"
+
+        cursor.execute(query_crear_jugando, (usuario.usuario, usuario.id_partida,))
+
+        conn.commit()
+        return usuario.id_partida
+        
+    except psycopg2.IntegrityError as e:
+        conn.rollback() #  deshacer si hay error
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    finally:
+        cursor.close()
+        conn.close()

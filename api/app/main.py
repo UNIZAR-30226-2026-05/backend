@@ -20,11 +20,11 @@ app.include_router(
     tags=["Esquema de juego"]      # Título para la documentación
 )
 
-#app.include_router(
-#   partidas.router,       # El objeto 'router' de partidas.py
-#    prefix="/partidas",    # Todas las rutas empezarán por /partidas
-#    tags=["Esquema de partidas"]      # Título para la documentación
-#)
+app.include_router(
+   partidas.router,       # El objeto 'router' de partidas.py
+    prefix="/partidas",    # Todas las rutas empezarán por /partidas
+    tags=["Esquema de partidas"]      # Título para la documentación
+)
 
 @app.get("/")
 def read_root():

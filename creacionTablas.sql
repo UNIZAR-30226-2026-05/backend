@@ -67,6 +67,7 @@ CREATE TABLE JUEGO.OBJETO(
 
 CREATE TABLE JUEGO.CASILLA(
     numero INTEGER PRIMARY KEY,
+    tipo VARCHAR(50) NOT NULL, -- 'normal', 'objeto', 'minijuego', 'movimiento'
     CONSTRAINT numero_correcto CHECK ( numero > 0 and numero < 72 )
 );
 
@@ -91,13 +92,13 @@ CREATE TABLE JUEGO.C_MOV(
 
 /* ESQUEMA PARTIDAS */
 CREATE TABLE PARTIDAS.PARTIDA_ACTIVA(
-    id INTEGER PRIMARY KEY, 
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, 
     hay_barrera BOOLEAN[],
     turno INTEGER,
     minijuego VARCHAR(50),
     ult_resultado INTEGER[],
     CONSTRAINT fk_minijuego FOREIGN KEY(minijuego) REFERENCES JUEGO.MINIJUEGO(nombre),
-    CONSTRAINT turno_positivo CHECK ( turno > 0 )
+    CONSTRAINT turno_positivo CHECK ( turno >= 0 )
 );
 
 CREATE TABLE PARTIDAS.JUGANDO(
@@ -181,3 +182,25 @@ CREATE TRIGGER trg_eliminar_solicitud_pendiente
 AFTER INSERT ON USUARIOS.AMIGOS
 FOR EACH ROW
 EXECUTE FUNCTION usuarios.eliminar_solicitud_pendiente();
+
+-- Evitar que un usuario este en múltiples partidas activas
+CREATE OR REPLACE FUNCTION partidas.check_usuario_partida_activa()
+RETURNS trigger AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM PARTIDAS.JUGANDO
+        WHERE nombre_jugador = NEW.nombre_jugador
+    ) THEN
+        DELETE FROM PARTIDAS.JUGANDO
+        WHERE nombre_jugador = NEW.nombre_jugador;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_check_usuario_partida_activa
+BEFORE INSERT ON PARTIDAS.JUGANDO
+FOR EACH ROW
+EXECUTE FUNCTION partidas.check_usuario_partida_activa();
