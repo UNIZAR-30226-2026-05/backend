@@ -118,7 +118,7 @@ def obtener_usuario(nombre: str):
 # ---------------------------------------------------------
 # LEER TODOS AMIGOS DE UN USER (GET)
 # ---------------------------------------------------------
-@router.get("/{nombre_user}", response_model=List[UsuarioPublico])
+@router.get("/{nombre_user}/amigos", response_model=List[UsuarioPublico])
 def obtener_todos_amigos_user(nombre_user: str):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -148,6 +148,9 @@ def obtener_todos_amigos_user(nombre_user: str):
     finally:
         cursor.close()
         conn.close()
+
+
+
 
 
 

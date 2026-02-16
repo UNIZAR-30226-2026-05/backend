@@ -41,3 +41,11 @@ class UsuarioPublico(BaseModel):
 class MinijuegoInfo(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
+
+class PersonajesInfo(BaseModel):
+    nombre: str = Field(..., example="Banquero")
+    habilidad: str = Field(..., example="Robar dinero a tus contrincantes")
+    descripcion: str = Field(..., example="Es el personaje que puede controlar...")
+
+class JoinPartida(BaseModel):
+    nombre: str

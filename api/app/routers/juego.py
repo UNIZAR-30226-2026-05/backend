@@ -1,8 +1,8 @@
-from schemas import UsuarioPublico, UsuarioRegistro, MinijuegoInfo 
+from schemas import UsuarioPublico, UsuarioRegistro, MinijuegoInfo, PersonajesInfo
 from database import get_db_connection
 
 from fastapi import APIRouter, HTTPException, status
-from typing import List
+from typing import List, Dict
 import psycopg2
 
 router = APIRouter()
@@ -70,6 +70,129 @@ def obtener_objeto_casilla(casilla):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+# =================================================================================================================================================
+# =================================================================================================================================================
+#                                                      ENDPOINTS CASILLAS
+# =================================================================================================================================================
+# =================================================================================================================================================
+# ---------------------------------------------------------
+# OBTENER LAS CASILLAS (GET)
+# ---------------------------------------------------------
+@router.get("/casillas/tipos", response_model=Dict[int,str]) 
+def obtener_tipos_casillas():
+    """
+    Al iniciar la partida, se obtiene un DICCIONARIO con el contenido de cada casilla (clave: número, valor: tipo)
+    """
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = """
+            SELECT numero, tipo
+            FROM JUEGO.CASILLA 
+        """
+
+        cursor.execute(query)
+        
+        resultados = cursor.fetchall()
+
+        # Convertimos la lista en un diccionario simple {1: 'normal', 2: '...'}
+        diccionario_final = { fila['numero']: fila['tipo'] for fila in resultados }
+
+        return diccionario_final
+    
+        
+    except psycopg2.IntegrityError as e:
+        conn.rollback() 
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------
+# OBTENER UN OBJETO ALEATORIO (GET)
+# ---------------------------------------------------------
+@router.get("/casillas/tipos", response_model=Dict[int,str]) 
+def obtener_tipos_casillas():
+    """
+    Al iniciar la partida, se obtiene un DICCIONARIO con el contenido de cada casilla (clave: número, valor: tipo)
+    """
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = """
+            SELECT numero, tipo
+            FROM JUEGO.CASILLA 
+        """
+
+        cursor.execute(query)
+        
+        resultados = cursor.fetchall()
+
+        # Convertimos la lista en un diccionario simple {1: 'normal', 2: '...'}
+        diccionario_final = { fila['numero']: fila['tipo'] for fila in resultados }
+
+        return diccionario_final
+    
+        
+    except psycopg2.IntegrityError as e:
+        conn.rollback() 
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+
+
+
+
+# =================================================================================================================================================
+# =================================================================================================================================================
+#                                                      ENDPOINTS PERSONAJE
+# =================================================================================================================================================
+# =================================================================================================================================================
+# ---------------------------------------------------------
+# LEER TODOS LOS PERSONAJES EXISTENTES (GET)
+# ---------------------------------------------------------
+@router.get("/personajes", response_model=List[PersonajesInfo])
+def obtener_personajes():
+    """
+    Devuelve los personajes existentes en el sistema
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = "SELECT * FROM JUEGO.PERSONAJE"
+        cursor.execute(query)
+        
+        resultado = cursor.fetchall()
+        
+        if not resultado:
+            raise HTTPException(status_code=404)
+            
+        return resultado
         
     finally:
         cursor.close()

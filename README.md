@@ -16,3 +16,7 @@ http://localhost:8000/docs
 
 
 docker compose up -d --build ->a plicar cambios en la configuración (como puertos en el docker-compose.yml) o en la imagen (como cambios en el Dockerfile)
+
+docker compose down -v para borrar el conteido de las tablas de base de datos y poder volver a crearlas
+
+docker compose logs <service>
