@@ -121,3 +121,5 @@ def unirse_partida(usuario: JoinPartida):
     finally:
         cursor.close()
         conn.close()
+
+# AÑADIR BORRADO DE PARTIDA Y ABANDONAR PARTIDA??
