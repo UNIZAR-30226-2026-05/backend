@@ -48,3 +48,13 @@ class PartidaActiva(BaseModel):
     turno: int
     minijuego: Optional[str] = None
     ult_resultado: Optional[List[int]] = None
+
+class PersonajesInfo(BaseModel):
+    nombre: str = Field(..., example="Banquero")
+    habilidad: str = Field(..., example="Robar dinero a tus contrincantes")
+    descripcion: str = Field(..., example="Es el personaje que puede controlar...")
+
+class ObjetoResponse(BaseModel):
+    objeto: str
+    precio: int
+    descripcion: str
