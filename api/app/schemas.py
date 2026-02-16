@@ -25,9 +25,9 @@ class UsuarioRegistro(BaseModel):
     nombre: str = Field(..., min_length=3, max_length=50, example="paquito")
     password: str = Field(..., min_length=6, example="secreto123")
 
-class CrearPartida(BaseModel):
-    
-    minijuego_inicial: str
+class JoinPartida(BaseModel):
+    usuario: str = Field(..., min_length=3, max_length=50, example="paquito")
+    id_partida: int = Field(..., gt=0, example=1)
 
 # --- MODELOS DE SALIDA (Lo que devolvemos al frontend) ---
 
@@ -42,10 +42,9 @@ class MinijuegoInfo(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
 
-class PersonajesInfo(BaseModel):
-    nombre: str = Field(..., example="Banquero")
-    habilidad: str = Field(..., example="Robar dinero a tus contrincantes")
-    descripcion: str = Field(..., example="Es el personaje que puede controlar...")
-
-class JoinPartida(BaseModel):
-    nombre: str
+class PartidaActiva(BaseModel):
+    id: int
+    hay_barrera: List[bool]
+    turno: int
+    minijuego: Optional[str] = None
+    ult_resultado: Optional[List[int]] = None

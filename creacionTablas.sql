@@ -204,3 +204,25 @@ CREATE TRIGGER trg_check_usuario_partida_activa
 BEFORE INSERT ON PARTIDAS.JUGANDO
 FOR EACH ROW
 EXECUTE FUNCTION partidas.check_usuario_partida_activa();
+
+-- Evitar que existan partidas sin usuarios
+CREATE OR REPLACE FUNCTION partidas.eliminar_partida_sin_jugadores()
+RETURNS trigger AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM PARTIDAS.JUGANDO
+        WHERE id_partida = OLD.id_partida
+    ) THEN
+        DELETE FROM PARTIDAS.PARTIDA_ACTIVA
+        WHERE id = OLD.id_partida;
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_eliminar_partida_sin_jugadores
+AFTER DELETE ON PARTIDAS.JUGANDO
+FOR EACH ROW
+EXECUTE FUNCTION partidas.eliminar_partida_sin_jugadores();
