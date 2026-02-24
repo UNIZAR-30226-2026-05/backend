@@ -87,7 +87,7 @@ CREATE TABLE JUEGO.C_OBJ(
 CREATE TABLE JUEGO.C_MOV(
     numero INTEGER PRIMARY KEY,
     movimiento INTEGER NOT NULL,
-    CONSTRAINT numero_correcto CHECK ( numero > 0 and numero < 72 )
+    CONSTRAINT numero_correcto CHECK ( numero >= 0 and numero < 72 )
 );
 
 /* ESQUEMA PARTIDAS */

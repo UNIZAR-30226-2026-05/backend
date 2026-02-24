@@ -55,6 +55,7 @@ VALUES
 
 INSERT INTO JUEGO.CASILLA(numero)
 VALUES
+    (0),        -- Casilla de salida
     (1),
     (4),
     (5),
@@ -76,7 +77,9 @@ VALUES
     (63),
     (65),
     (68),
-    (69);
+    (69),
+    (70),
+    (71);       -- Casilla final
 
 INSERT INTO JUEGO.C_MOV(numero, movimiento)
 VALUES
