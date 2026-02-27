@@ -107,7 +107,20 @@ def unirse_partida(usuario: JoinPartida):
 
         cursor.execute(query_crear_jugando, (usuario.usuario, usuario.id_partida,))
 
+        query_conteo = "SELECT COUNT(*) as total FROM PARTIDAS.JUGANDO WHERE id_partida = %s"
+        cursor.execute(query_conteo, (usuario.id_partida,))
+        resultado_conteo = cursor.fetchone()
+        cantidad_actual = resultado_conteo['total']
+
         conn.commit()
+
+        if cantidad_actual >= MAX_JUGADORES:
+            await manager.broadcast_to_room(usuario.id_partida, {
+                "evento": "PARTIDA_LLENA",
+                "mensaje": "La partida está lista para comenzar",
+                "id_partida": usuario.id_partida
+            })
+
         return usuario.id_partida
         
     except psycopg2.IntegrityError as e:
@@ -123,3 +136,15 @@ def unirse_partida(usuario: JoinPartida):
         conn.close()
 
 # AÑADIR BORRADO DE PARTIDA Y ABANDONAR PARTIDA??
+
+
+# Router Web-Sockets
+
+@router.websocket("/{partida_id}")
+async def websocket_endpoint(websocket: WebSocket, partida_id: int):
+    await manager.connect(websocket, partida_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except Exception:
+        manager.disconnect(websocket, partida_id)
