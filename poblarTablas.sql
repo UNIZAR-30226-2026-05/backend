@@ -11,7 +11,7 @@ VALUES
 
 INSERT INTO JUEGO.PERSONAJE(nombre, habilidad, descripcion)
 VALUES
-    ('Banquero', 'Shalom', 'Como me gusta ciudad de Tel Avid'),
+    ('Banquero', 'Shalom', 'Como me gusta ciudad de Tel Aviv'),
     ('Videojugador', 'Jugar', 'Viva vegetta777'),
     ('Escapista', 'Escapar','Me fui klk'),
     ('Vidente', 'Ver', 'Te veo los pensamientos');
