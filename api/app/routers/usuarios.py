@@ -3,7 +3,7 @@ from database import get_db_connection
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from security import verificar_password, crear_token_acceso, SECRET_KEY, ALGORITHM
+from security import verificar_password, crear_token_acceso, obtener_hash_password, SECRET_KEY, ALGORITHM
 from datetime import datetime
 from typing import List
 import psycopg2
@@ -23,7 +23,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # INSERTAR 1 USUARIO (POST)
 # ---------------------------------------------------------
 #Response model es el modelo de salida también definidio en pydantic
-@router.post("/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
+@router.post("/registro/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
 def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de pydantic
     """
     Crea un nuevo usuario en el sistema.
@@ -36,6 +36,8 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
     
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    hashed_password = obtener_hash_password(usuario.password) # Hasheamos la contraseña antes de guardarla
     
     try:
         # HAY qeu especificar esquema y tabla
@@ -45,13 +47,13 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
             RETURNING nombre;
         """
         # Ejecutamos la query pasando los datos como tupla (para no inyección)
-        cursor.execute(query, (usuario.nombre, usuario.password))
+        cursor.execute(query, (usuario.nombre, hashed_password))
         
         # Confirmamos los cambios en la BD -> ESto es sobre todo cuando vas cogiendo muchos datos para que se te guarden pero no es imprescindible
         conn.commit()
         
         # COgemos el dato 
-        nuevo_usuario = cursor.fetchone() 
+        nuevo_usuario = cursor.fetchone()
         
         return nuevo_usuario # Pydantic filtrará el password automáticamente
         
@@ -154,34 +156,6 @@ def obtener_todos_amigos_user(nombre_user: str):
         cursor.close()
         conn.close()
 
-
-
-
-
-
-"""ESTE ES DE MINIJUEGOS PERO PARA QUE VEAIS QUE CUANDO DEVUELVE LISTA HAY QUE PONER EL FETCHALL Y TIPO LISTA"""
-# ---------------------------------------------------------
-# LEER VARIOS (GET) 
-# ---------------------------------------------------------
-@router.get("/juegos/", response_model=List[MinijuegoInfo])
-def listar_minijuegos():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("SELECT * FROM JUEGO.MINIJUEGO")
-        
-        resultados = cursor.fetchall() # Trae TODOS como una lista
-        
-        return resultados
-        
-    finally:
-        cursor.close()
-        conn.close()
-
-
-
-
 # =================================================================================================================================================
 # =================================================================================================================================================
 #                                                      ENDPOINTS SESIÓN ACTIVA
@@ -218,4 +192,3 @@ def obtener_usuario_actual(token = Depends(oauth2_scheme)):
     finally:
         cursor.close()
         conn.close()
-
