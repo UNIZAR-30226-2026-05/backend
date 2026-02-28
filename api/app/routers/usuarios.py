@@ -3,10 +3,12 @@ from database import get_db_connection
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from security import verificar_password, crear_token_acceso
+from security import verificar_password, crear_token_acceso, SECRET_KEY, ALGORITHM
 from datetime import datetime
 from typing import List
 import psycopg2
+import jwt
+from jwt import InvalidTokenError
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -209,7 +211,7 @@ def obtener_usuario_actual(token = Depends(oauth2_scheme)):
         cursor.execute("SELECT token FROM USUARIOS.SESION_ACTIVA WHERE usuario = %s", (username,))
         sesion = cursor.fetchone()
         
-        if not sesion or sesion['token'] != token:
+        if not sesion or sesion['token'] != token:  # Alternativa: if not sesion or sesion[0] != token:
             raise credentials_exception
             
         return username # Devuelve el nombre del usuario verificado
