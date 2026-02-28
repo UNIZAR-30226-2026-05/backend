@@ -1,9 +1,10 @@
 from schemas import JoinPartida
 from database import get_db_connection
 
-from fastapi import APIRouter, HTTPException, status
-from typing import List
+from fastapi import APIRouter, HTTPException, status, WebSocket
+from typing import List,Dict
 import psycopg2
+from modulos import conexionEsperarPartida
 
 router = APIRouter()
 
@@ -78,7 +79,7 @@ def crear_partida(usuario: str):
 # UNIRSE A PARTIDA (POST)
 # ---------------------------------------------------------
 @router.post("/unirse_partida", status_code=status.HTTP_201_CREATED, response_model=int)
-def unirse_partida(usuario: JoinPartida):
+async def unirse_partida(usuario: JoinPartida):
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -140,7 +141,7 @@ def unirse_partida(usuario: JoinPartida):
 
 # Router Web-Sockets
 
-@router.websocket("/{partida_id}")
+@router.websocket("/ws/{partida_id}")
 async def websocket_endpoint(websocket: WebSocket, partida_id: int):
     await manager.connect(websocket, partida_id)
     try:
