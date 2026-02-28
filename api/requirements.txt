@@ -2,6 +2,7 @@ fastapi
 uvicorn
 psycopg2-binary  # Driver para conectar Postgres
 websockets
-passlib[bcrypt] # Encriptar (hashear) las contraseñas de forma segura y verificarlas. Nunca se guardan en texto plano.
+passlib==1.7.4
+bcrypt==3.2.2
 PyJWT # Para generar y descifrar los tokens JWT.
 python-multipart #FastAPI lo necesita para leer los formularios de login estándar.
