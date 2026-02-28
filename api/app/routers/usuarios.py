@@ -1,12 +1,15 @@
 from schemas import UsuarioPublico, UsuarioRegistro, MinijuegoInfo 
 from database import get_db_connection
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from security import verificar_password, crear_token_acceso
+from datetime import datetime
 from typing import List
 import psycopg2
 
 router = APIRouter()
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # =================================================================================================================================================
 # =================================================================================================================================================
@@ -173,3 +176,44 @@ def listar_minijuegos():
     finally:
         cursor.close()
         conn.close()
+
+
+
+
+# =================================================================================================================================================
+# =================================================================================================================================================
+#                                                      ENDPOINTS SESIÓN ACTIVA
+# =================================================================================================================================================
+# =================================================================================================================================================
+
+
+def obtener_usuario_actual(token = Depends(oauth2_scheme)):
+    """Valida el token y devuelve el nombre del usuario logueado"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No se pudieron validar las credenciales",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except InvalidTokenError:
+        raise credentials_exception
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT token FROM USUARIOS.SESION_ACTIVA WHERE usuario = %s", (username,))
+        sesion = cursor.fetchone()
+        
+        if not sesion or sesion['token'] != token:
+            raise credentials_exception
+            
+        return username # Devuelve el nombre del usuario verificado
+    finally:
+        cursor.close()
+        conn.close()
+
