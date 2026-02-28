@@ -23,7 +23,7 @@ from datetime import datetime
 
 class UsuarioRegistro(BaseModel):
     nombre: str = Field(..., min_length=3, max_length=50, example="paquito")
-    password: str = Field(..., min_length=6, example="secreto123")
+    password: str = Field(..., min_length=8, max_length=72, example="secreto123")
 
 class JoinPartida(BaseModel):
     usuario: str = Field(..., min_length=3, max_length=50, example="paquito")
