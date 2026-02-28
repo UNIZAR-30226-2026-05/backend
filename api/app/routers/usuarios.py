@@ -188,7 +188,12 @@ def listar_minijuegos():
 # =================================================================================================================================================
 # =================================================================================================================================================
 
-
+# ---------------------------------------------------------
+# IMPORTANTE!! ESto es lo que utilizamos como dependencia en el resto de endpoints para que los usuarios
+# necesiten autenticación para utilizarlos.
+# Básicamente al llamar a un endpoint como el de unirnos a partida, llama previamente a esta función que comprueba 
+# nuestro token en la db y si funciona devuelve el nombre de usuario
+# ---------------------------------------------------------
 def obtener_usuario_actual(token = Depends(oauth2_scheme)):
     """Valida el token y devuelve el nombre del usuario logueado"""
     credentials_exception = HTTPException(
@@ -211,7 +216,7 @@ def obtener_usuario_actual(token = Depends(oauth2_scheme)):
         cursor.execute("SELECT token FROM USUARIOS.SESION_ACTIVA WHERE usuario = %s", (username,))
         sesion = cursor.fetchone()
         
-        if not sesion or sesion['token'] != token:  # Alternativa: if not sesion or sesion[0] != token:
+        if not sesion or sesion['token'] != token: 
             raise credentials_exception
             
         return username # Devuelve el nombre del usuario verificado
@@ -219,3 +224,50 @@ def obtener_usuario_actual(token = Depends(oauth2_scheme)):
         cursor.close()
         conn.close()
 
+
+
+# ---------------------------------------------------------
+#  CREAR UNA NUEVA SESIÓN ACTIVA AL HACER LOGIN USUARIO (POST)
+# ---------------------------------------------------------
+@router.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    #en form_data está username y password
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    form_data
+
+    try:
+        # Buscar al usuario en la tabla USUARIOS.USUARIO
+        cursor.execute("SELECT nombre, password FROM USUARIOS.USUARIO WHERE nombre = %s", (form_data.username,))
+        usuario = cursor.fetchone()
+
+        #En database.py, hemos utilizaodo RealDictCursor, que devuelve un diccionario , luego en usuario se 
+        # almacena {'nombre': '...', 'password': 'hash...'}
+        
+        # Verificar si existe y si la contraseña coincide con el hash
+        if not usuario or not verificar_password(form_data.password, usuario['password']):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario o contraseña incorrectos",
+            )
+        
+        # SI LA CONTRASEÑA ES CORRECTA:
+        # Crear el token JWT
+        access_token = crear_token_acceso(data={"sub": usuario['nombre']})
+        
+        # Guardar o actualizar la sesión en USUARIOS.SESION_ACTIVA
+        query = """
+            INSERT INTO USUARIOS.SESION_ACTIVA (usuario, token, ult_acceso)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (usuario) 
+            DO UPDATE SET token = EXCLUDED.token, ult_acceso = EXCLUDED.ult_acceso;
+        """
+        cursor.execute(query, (usuario['nombre'], access_token, datetime.now()))
+        conn.commit()
+        
+        return {"access_token": access_token, "token_type": "bearer"}
+        
+    finally:
+        cursor.close()
+        conn.close()
