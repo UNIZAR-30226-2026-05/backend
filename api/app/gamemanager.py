@@ -3,14 +3,14 @@
 # a los jugadores que estan esperando que ha iniciado la partida
 
 from fastapi import WebSocket
-
+from routers.partidas import *
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
 # el cual se encargara de que si no existe crear uno nuevo
 
 class GameSession:
         def __init__(self, game_id: int):
             self.game_id = game_id
-            self.players: dict[int, WebSocket] = {}
+            self.players: dict[str, WebSocket] = {}
             self.status = "WAITING"
             self.board_state = {}
         
@@ -19,9 +19,20 @@ class GameSession:
             return len(self.players) == 4
         
         async def broadcast (self, message: dict):
-            for ws in self.players.values():
+            jugadores_desconectados = []
+
+            for player_id, ws in self.players.items():
                 if ws is not None:
-                    await ws.send_json(message)
+                    try:
+                        await ws.send_json(message)
+                    except Exception as e:
+                        # Si falla el envío (ej. WebSocketDisconnect), capturamos el error
+                        print(f"Omitiendo jugador {player_id} (desconectado): {e}")
+                        jugadores_desconectados.append(player_id)
+            
+            # Limpiamos a los "fantasmas" marcando su socket como None
+            for p_id in jugadores_desconectados:
+                self.players[p_id] = None
 
 class GameManager:
     def __init__(self):
@@ -56,21 +67,34 @@ class GameManager:
         # Verficar que la partida no esta llena
 
         if not reconnect and (session.is_full or session.status != "WAITING"):
-            await websocket.send_json({"error: La partida esta llena"})
+            await websocket.send_json({"error": "La partida esta llena"})
             await websocket.close()
             return False
 
         session.players[player_id] = websocket
         
-        if not reconnect:
+        if "posiciones" not in session.board_state:
+            session.board_state["posiciones"] = {}
+            
+        if player_id not in session.board_state["posiciones"]:
+                    session.board_state["posiciones"][player_id] = 1
+
+        # Asignarle la casilla inicial (ej. la casilla 1)
+        if reconnect:
+            # Le avisamos al jugador que ha vuelto con éxito y el estado actual
+            await websocket.send_json({
+                "type": "reconnect_success",
+                "game_status": session.status,
+                "current_board": session.board_state
+            })
+        else:
+            # Lógica normal para nuevos jugadores
             await session.broadcast({
                 "type" : "lobby_update",
-                "players_connected": len(session.players),
+                "players_connected": len([p for p in session.players.values() if p is not None]),
                 "message": f"Jugador {player_id} se ha unido"
             })
 
-        # Si estan todos los juadores 
-        if not reconnect:
             if session.is_full:
                 session.status = "PLAYING"
                 await session.broadcast({
@@ -91,10 +115,10 @@ class GameManager:
                     "message": "El jugador"
                 })
 
-    async def process_action(self, game_id: int, user: str, message: dict):
+    async def process_action(self, game_id: int, user: str, action: str, payload: dict = None):
         session = self.active_games[game_id]
         
-        match message["action"]:
+        match action:
             case "tirar_dado":
                 dado = 5
                 nueva_casilla = session.board_state["posiciones"][user] + dado

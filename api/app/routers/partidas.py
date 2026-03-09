@@ -171,10 +171,9 @@ def actualizar_casilla(game_id: int, player: str, nueva_casilla: int):
 # FUNCIONES AUXILIARES
 # ---------------------------------------------------------
 
-async def verificar_usuario(cursor, user: str):
+def verificar_usuario(cursor, user: str):
     query_usuario = "SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s"
     cursor.execute(query_usuario, (user,))
-    resultado_usuario = cursor.fetchone()
-    
-    if not resultado_usuario:
-        return False
+    resultado = cursor.fetchone()
+
+    return resultado is not None

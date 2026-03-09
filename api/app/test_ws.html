@@ -67,7 +67,7 @@
 
         function enviarAccion() {
             if(!ws) { alert("¡Conéctate primero!"); return; }
-            const accion = { accion: "tirar_dado" };
+            const accion = { "action": "tirar_dado" };
             ws.send(JSON.stringify(accion));
             log(`📤 ENVIADO: ${JSON.stringify(accion)}`);
         }
