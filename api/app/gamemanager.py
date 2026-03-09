@@ -8,31 +8,31 @@ from fastapi import WebSocket
 # el cual se encargara de que si no existe crear uno nuevo
 
 class GameSession:
-        def __init__(self, game_id: str):
+        def __init__(self, game_id: int):
             self.game_id = game_id
-            self.players: dict[str, WebSocket] = {}
+            self.players: dict[int, WebSocket] = {}
             self.status = "WAITING"
-            self.boar_state = {}
+            self.board_state = {}
         
         @property
         def is_full(self):
-            return len(self.palyers) == 4
+            return len(self.players) == 4
         
         async def broadcast (self, message: dict):
             for ws in self.players.values():
                 await ws.send_json(message)
 
-class GameConnectionManager:
+class GameManager:
     def __init__(self):
-        self.sessions: dict[str, GameSession] = {}
+        self.active_games: dict[int, GameSession] = {}
 
-    async def connect(self, websocket: WebSocket, game_id: str, player_id: str):
+    async def connect(self, websocket: WebSocket, game_id: int, player_id: str):
         await websocket.accept()
 
-        if game_id not in self.sessions:
-            self.sessions[game_id] = GameSession(game_id)
+        if game_id not in self.active_games:
+            self.active_games[game_id] = GameSession(game_id)
         
-        session = self.sessions[game_id]
+        session = self.active_games[game_id]
 
         if session.is_full or session.status != "WAITING":
             await websocket.send_json({"error: La partida esta llena"})
@@ -54,4 +54,33 @@ class GameConnectionManager:
             })
         return True
 
-manager = GameConnectionManager()
+    async def disconnect(self, websocket: WebSocket, game_id: int, player_id:str):
+        if game.id in self.active_games:
+            session = self.active_games[game_id]
+            if player_id in session.players:
+
+                session.players[player_id] = None
+                await session.broadcast({
+                    "type": "player_disconnected",
+                    "message": "El jugador"
+                })
+                
+    async def process_action(self, game_id: int, user: str, message: dict):
+        session = self.active_games[game_id]
+        
+        match message["action"]:
+            case "tirar_dado":
+                dado = 5
+                nueva_casilla = session.board_state["posiciones"][user] + dado
+                session.board_state["posiciones"][user] = nueva_casilla
+
+                actualizar_casilla(game_id, user, nueva_casilla)
+
+                await session.broadcast({
+                    "type": "rolled_dice",
+                    "user": user,
+                    "result": dado,
+                    "nueva_casilla": nueva_casilla
+                })
+    
+manager = GameManager()

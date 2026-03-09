@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from routers import usuarios
 from routers import juego
 from routers import partidas
+from routers import websocket
 
 app = FastAPI()  # Esta es la variable que busca Uvicorn
 
@@ -25,6 +26,8 @@ app.include_router(
     prefix="/partidas",    # Todas las rutas empezarán por /partidas
     tags=["Esquema de partidas"]      # Título para la documentación
 )
+
+app.include_router(websocket.router)
 
 @app.get("/")
 def read_root():

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test WebSocket Oca</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #222; color: #fff; }
+        input, button { padding: 10px; margin: 5px; font-size: 16px; }
+        #mensajes { background: #000; color: #0f0; padding: 15px; height: 300px; overflow-y: scroll; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <h2>Simulador de Jugador</h2>
+    
+    <label>ID Partida:</label>
+    <input type="number" id="id_partida" value="1">
+    
+    <label>Tu Usuario:</label>
+    <input type="text" id="usuario" placeholder="Ej: Paco">
+    
+    <button onclick="conectar()">Conectar al Lobby</button>
+    <button onclick="desconectar()" style="background: red; color: white;">Desconectar</button>
+    
+    <hr>
+    
+    <button onclick="enviarAccion()">Tirar Dado</button>
+
+    <h3>Consola del Servidor:</h3>
+    <div id="mensajes"></div>
+
+    <script>
+        let ws = null;
+
+        function log(mensaje) {
+            const div = document.getElementById("mensajes");
+            div.innerHTML += `<div>> ${mensaje}</div>`;
+            div.scrollTop = div.scrollHeight; // Auto-scroll hacia abajo
+        }
+
+        function conectar() {
+            const partida = document.getElementById("id_partida").value;
+            const usuario = document.getElementById("usuario").value;
+
+            if(!usuario) { alert("Pon un nombre de usuario"); return; }
+
+            // FÍJATE EN LA URL: Apunta al puerto 8080 de tu Docker
+            const url = `ws://localhost:8080/ws/partida/${partida}/${usuario}`;
+            log(`Conectando a ${url}...`);
+            
+            ws = new WebSocket(url);
+
+            ws.onopen = () => log("✅ CONECTADO AL SERVIDOR");
+            ws.onclose = () => log("❌ DESCONECTADO DEL SERVIDOR");
+            ws.onerror = (e) => log("⚠️ ERROR DE CONEXIÓN");
+            
+            // Cada vez que el GameManager hace un "broadcast", cae aquí:
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                log(`📩 MENSAJE RECIBIDO: ${JSON.stringify(data, null, 2)}`);
+            };
+        }
+
+        function desconectar() {
+            if(ws) ws.close();
+        }
+
+        function enviarAccion() {
+            if(!ws) { alert("¡Conéctate primero!"); return; }
+            const accion = { accion: "tirar_dado" };
+            ws.send(JSON.stringify(accion));
+            log(`📤 ENVIADO: ${JSON.stringify(accion)}`);
+        }
+    </script>
+</body>
+</html>

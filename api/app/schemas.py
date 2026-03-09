@@ -18,6 +18,7 @@ automáticamente, y coge lo que se ha puesto en los esquemas pydantic asi q rent
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from typing import Any
 
 # --- MODELOS DE ENTRADA (Lo que el frontend nos envía) ---
 
@@ -58,3 +59,10 @@ class ObjetoResponse(BaseModel):
     objeto: str
     precio: int
     descripcion: str
+
+
+# Para los WebSockets
+# Modelo para cualquier mensaje del jugador
+class PlayerAction(BaseModel):
+    action: str         # move, roll_dice etc
+    payload: dict[str, Any] = {}    # Datos extra, posicion, minijuego, resultado de algo etc

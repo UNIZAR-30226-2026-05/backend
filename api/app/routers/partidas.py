@@ -1,7 +1,7 @@
 from schemas import JoinPartida
 from database import get_db_connection
 
-from fastapi import APIRouter, HTTPException, status, WebSocket
+from fastapi import APIRouter, HTTPException, status
 from typing import List,Dict
 import psycopg2
 from modulos.conexionEsperarPartida import ConnectionManager
@@ -9,7 +9,7 @@ from modulos.conexionEsperarPartida import ConnectionManager
 router = APIRouter()
 
 MAX_JUGADORES = 4  # Definir el número máximo de jugadores por partida
-manager = ConnectionManager()
+connection_manager = ConnectionManager()
 
 # ---------------------------------------------------------
 # OBTENER PARTIDAS ACTIVAS (GET)
@@ -43,11 +43,7 @@ def crear_partida(usuario: str):
     
     try:
         # Verificar que el usuario existe
-        query_usuario = "SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s"
-        cursor.execute(query_usuario, (usuario,))
-        resultado_usuario = cursor.fetchone()
-        
-        if not resultado_usuario:
+        if(not verificar_usuario(cursor, usuario)):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
         # Crear partida activa con valores iniciales
@@ -90,11 +86,7 @@ async def unirse_partida(usuario: JoinPartida):
         # VIGILAR QUE UNA PARTIDA NO SE LLENE
 
         # Verificar que el usuario existe
-        query_usuario = "SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s"
-        cursor.execute(query_usuario, (usuario.usuario,))
-        resultado_usuario = cursor.fetchone()
-        
-        if not resultado_usuario:
+        if(not verificar_usuario(cursor, usuario.usuario)):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
         # Verificar que existe la partida
@@ -118,13 +110,6 @@ async def unirse_partida(usuario: JoinPartida):
 
         conn.commit()
 
-        if cantidad_actual >= MAX_JUGADORES:
-            await manager.broadcast_to_room(usuario.id_partida, {
-                "evento": "PARTIDA_LLENA",
-                "mensaje": "La partida está lista para comenzar",
-                "id_partida": usuario.id_partida
-            })
-
         return usuario.id_partida
         
     except psycopg2.IntegrityError as e:
@@ -142,13 +127,54 @@ async def unirse_partida(usuario: JoinPartida):
 # AÑADIR BORRADO DE PARTIDA Y ABANDONAR PARTIDA??
 
 
-# Router Web-Sockets
+# ---------------------------------------------------------
+# PARTIDA ACTUAL
+# ---------------------------------------------------------
 
-@router.websocket("/ws/{partida_id}")
-async def websocket_endpoint(websocket: WebSocket, partida_id: int):
-    await manager.connect(websocket, partida_id)
+# ---------------------------------------------------------
+# Actualizar casilla de jugador
+# ---------------------------------------------------------
+
+def actualizar_casilla(game_id: int, player: str, nueva_casilla: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
     try:
-        while True:
-            await websocket.receive_text()
-    except Exception:
-        manager.disconnect(websocket, partida_id)
+        # 1. Validación sin HTTPException
+        if not verificar_usuario(cursor, player):
+            raise ValueError(f"Usuario {player} no encontrado")
+        
+        # 2. psycopg2 usa SIEMPRE %s (incluso para los int)
+        query_partida = """
+            UPDATE PARTIDAS.JUGANDO 
+            SET casilla = %s 
+            WHERE nombre_jugador = %s AND id_partida = %s
+        """
+        
+        cursor.execute(query_partida, (nueva_casilla, player, game_id))
+        
+        # Guardamos los cambios
+        conn.commit()
+        return True
+
+    except Exception as e:
+        conn.rollback() # Deshacer si hay error
+        print(f"Error de BBDD al actualizar casilla: {e}") # Para que tú lo veas en la consola
+        return False # Le decimos al GameManager que falló
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------
+# FUNCIONES AUXILIARES
+# ---------------------------------------------------------
+
+async def verificar_usuario(cursor, user: str):
+    query_usuario = "SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s"
+    cursor.execute(query_usuario, (user,))
+    resultado_usuario = cursor.fetchone()
+    
+    if not resultado_usuario:
+        return False
