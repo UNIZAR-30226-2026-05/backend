@@ -3,10 +3,12 @@ from database import get_db_connection
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from security import verificar_password, crear_token_acceso
+from security import verificar_password, crear_token_acceso, obtener_hash_password, SECRET_KEY, ALGORITHM
 from datetime import datetime
 from typing import List
 import psycopg2
+import jwt
+from jwt import InvalidTokenError
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -21,7 +23,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # INSERTAR 1 USUARIO (POST)
 # ---------------------------------------------------------
 #Response model es el modelo de salida también definidio en pydantic
-@router.post("/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
+@router.post("/registro/", response_model=UsuarioPublico, status_code=status.HTTP_201_CREATED) 
 def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de pydantic
     """
     Crea un nuevo usuario en el sistema.
@@ -34,6 +36,8 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
     
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    hashed_password = obtener_hash_password(usuario.password) # Hasheamos la contraseña antes de guardarla
     
     try:
         # HAY qeu especificar esquema y tabla
@@ -43,13 +47,13 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
             RETURNING nombre;
         """
         # Ejecutamos la query pasando los datos como tupla (para no inyección)
-        cursor.execute(query, (usuario.nombre, usuario.password))
+        cursor.execute(query, (usuario.nombre, hashed_password))
         
         # Confirmamos los cambios en la BD -> ESto es sobre todo cuando vas cogiendo muchos datos para que se te guarden pero no es imprescindible
         conn.commit()
         
         # COgemos el dato 
-        nuevo_usuario = cursor.fetchone() 
+        nuevo_usuario = cursor.fetchone()
         
         return nuevo_usuario # Pydantic filtrará el password automáticamente
         
@@ -152,41 +156,18 @@ def obtener_todos_amigos_user(nombre_user: str):
         cursor.close()
         conn.close()
 
-
-
-
-
-
-"""ESTE ES DE MINIJUEGOS PERO PARA QUE VEAIS QUE CUANDO DEVUELVE LISTA HAY QUE PONER EL FETCHALL Y TIPO LISTA"""
-# ---------------------------------------------------------
-# LEER VARIOS (GET) 
-# ---------------------------------------------------------
-@router.get("/juegos/", response_model=List[MinijuegoInfo])
-def listar_minijuegos():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("SELECT * FROM JUEGO.MINIJUEGO")
-        
-        resultados = cursor.fetchall() # Trae TODOS como una lista
-        
-        return resultados
-        
-    finally:
-        cursor.close()
-        conn.close()
-
-
-
-
 # =================================================================================================================================================
 # =================================================================================================================================================
 #                                                      ENDPOINTS SESIÓN ACTIVA
 # =================================================================================================================================================
 # =================================================================================================================================================
 
-
+# ---------------------------------------------------------
+# IMPORTANTE!! ESto es lo que utilizamos como dependencia en el resto de endpoints para que los usuarios
+# necesiten autenticación para utilizarlos.
+# Básicamente al llamar a un endpoint como el de unirnos a partida, llama previamente a esta función que comprueba 
+# nuestro token en la db y si funciona devuelve el nombre de usuario
+# ---------------------------------------------------------
 def obtener_usuario_actual(token = Depends(oauth2_scheme)):
     """Valida el token y devuelve el nombre del usuario logueado"""
     credentials_exception = HTTPException(
@@ -209,7 +190,7 @@ def obtener_usuario_actual(token = Depends(oauth2_scheme)):
         cursor.execute("SELECT token FROM USUARIOS.SESION_ACTIVA WHERE usuario = %s", (username,))
         sesion = cursor.fetchone()
         
-        if not sesion or sesion['token'] != token:
+        if not sesion or sesion['token'] != token: 
             raise credentials_exception
             
         return username # Devuelve el nombre del usuario verificado
@@ -217,3 +198,50 @@ def obtener_usuario_actual(token = Depends(oauth2_scheme)):
         cursor.close()
         conn.close()
 
+
+
+# ---------------------------------------------------------
+#  CREAR UNA NUEVA SESIÓN ACTIVA AL HACER LOGIN USUARIO (POST)
+# ---------------------------------------------------------
+@router.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    #en form_data está username y password
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    form_data
+
+    try:
+        # Buscar al usuario en la tabla USUARIOS.USUARIO
+        cursor.execute("SELECT nombre, password FROM USUARIOS.USUARIO WHERE nombre = %s", (form_data.username,))
+        usuario = cursor.fetchone()
+
+        #En database.py, hemos utilizaodo RealDictCursor, que devuelve un diccionario , luego en usuario se 
+        # almacena {'nombre': '...', 'password': 'hash...'}
+        
+        # Verificar si existe y si la contraseña coincide con el hash
+        if not usuario or not verificar_password(form_data.password, usuario['password']):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario o contraseña incorrectos",
+            )
+        
+        # SI LA CONTRASEÑA ES CORRECTA:
+        # Crear el token JWT
+        access_token = crear_token_acceso(data={"sub": usuario['nombre']})
+        
+        # Guardar o actualizar la sesión en USUARIOS.SESION_ACTIVA
+        query = """
+            INSERT INTO USUARIOS.SESION_ACTIVA (usuario, token, ult_acceso)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (usuario) 
+            DO UPDATE SET token = EXCLUDED.token, ult_acceso = EXCLUDED.ult_acceso;
+        """
+        cursor.execute(query, (usuario['nombre'], access_token, datetime.now()))
+        conn.commit()
+        
+        return {"access_token": access_token, "token_type": "bearer"}
+        
+    finally:
+        cursor.close()
+        conn.close()
