@@ -29,15 +29,34 @@ class GameManager:
     async def connect(self, websocket: WebSocket, game_id: int, player_id: str):
         await websocket.accept()
 
+        # Crear el nuevo game en caso de que no exita
+
         if game_id not in self.active_games:
             self.active_games[game_id] = GameSession(game_id)
         
         session = self.active_games[game_id]
 
+        # Verificar que el usuario no esta conectado desde otro dispositvo
+
+        if player_id in session.players:
+            old_socket = session.players[player_id]
+            if old_socket is not None:
+                try:
+                    await old_socket.send_json({
+                        "type": "force_disconnect",
+                        "message": "Nueva conexion desde otro dispositivo"
+                    })
+                    await old_socket.close()
+                except:
+                    pass
+
+        # Verficar que la partida no esta llena
+
         if session.is_full or session.status != "WAITING":
             await websocket.send_json({"error: La partida esta llena"})
             await websocket.close()
             return False
+
         session.players[player_id] = websocket
 
         await session.broadcast({
@@ -46,12 +65,15 @@ class GameManager:
             "message": f"Jugador {player_id} se ha unido"
         })
 
+        # Si estan todos los juadores 
+
         if session.is_full:
             session.status = "PLAYING"
             await session.broadcast({
                 "type": "game_start",
                 "message": "Empieza el juego"
             })
+
         return True
 
     async def disconnect(self, websocket: WebSocket, game_id: int, player_id:str):
@@ -64,7 +86,7 @@ class GameManager:
                     "type": "player_disconnected",
                     "message": "El jugador"
                 })
-                
+
     async def process_action(self, game_id: int, user: str, message: dict):
         session = self.active_games[game_id]
         
