@@ -20,7 +20,8 @@ class GameSession:
         
         async def broadcast (self, message: dict):
             for ws in self.players.values():
-                await ws.send_json(message)
+                if ws is not None:
+                    await ws.send_json(message)
 
 class GameManager:
     def __init__(self):
@@ -36,9 +37,11 @@ class GameManager:
         
         session = self.active_games[game_id]
 
+        reconnect = player_id in session.players
+
         # Verificar que el usuario no esta conectado desde otro dispositvo
 
-        if player_id in session.players:
+        if reconnect:
             old_socket = session.players[player_id]
             if old_socket is not None:
                 try:
@@ -52,32 +55,33 @@ class GameManager:
 
         # Verficar que la partida no esta llena
 
-        if session.is_full or session.status != "WAITING":
+        if not reconnect and (session.is_full or session.status != "WAITING"):
             await websocket.send_json({"error: La partida esta llena"})
             await websocket.close()
             return False
 
         session.players[player_id] = websocket
-
-        await session.broadcast({
-            "type" : "lobby_update",
-            "players_connected": len(session.players),
-            "message": f"Jugador {player_id} se ha unido"
-        })
+        
+        if not reconnect:
+            await session.broadcast({
+                "type" : "lobby_update",
+                "players_connected": len(session.players),
+                "message": f"Jugador {player_id} se ha unido"
+            })
 
         # Si estan todos los juadores 
-
-        if session.is_full:
-            session.status = "PLAYING"
-            await session.broadcast({
-                "type": "game_start",
-                "message": "Empieza el juego"
-            })
+        if not reconnect:
+            if session.is_full:
+                session.status = "PLAYING"
+                await session.broadcast({
+                    "type": "game_start",
+                    "message": "Empieza el juego"
+                })
 
         return True
 
     async def disconnect(self, websocket: WebSocket, game_id: int, player_id:str):
-        if game.id in self.active_games:
+        if game_id in self.active_games:
             session = self.active_games[game_id]
             if player_id in session.players:
 
