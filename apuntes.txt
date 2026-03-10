@@ -1,0 +1,9 @@
+def process_action(self, game_id: int, user: str, action: str, payload: dict = None):
+action = "tirar_dado" -> Lo llama cada usuario antes de entrar al minijuego para decidir los dados otorgados
+    Implementacion: si un jugador que en esta ronda ha tirado 1o llama a la función y esta sortea los dados para el que tire 1o 
+                    despues del minijuego
+                    Si dados sorteados == 4 -> avisar al vidente (o a todos y que solo lo coja el vidente??) -> esperar OK vidente
+
+action = "mover" -> Si casilla == 72 (avisar a todos y cerrar sockets), que hay en la casilla
+
+action = "minijuego"
