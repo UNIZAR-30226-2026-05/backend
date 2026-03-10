@@ -140,11 +140,10 @@ def actualizar_casilla(game_id: int, player: str, nueva_casilla: int):
     cursor = conn.cursor()
 
     try:
-        # 1. Validación sin HTTPException
+
         if not verificar_usuario(cursor, player):
-            raise ValueError(f"Usuario {player} no encontrado")
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
-        # 2. psycopg2 usa SIEMPRE %s (incluso para los int)
         query_partida = """
             UPDATE PARTIDAS.JUGANDO 
             SET casilla = %s 
@@ -166,6 +165,46 @@ def actualizar_casilla(game_id: int, player: str, nueva_casilla: int):
         cursor.close()
         conn.close()
 
+# ---------------------------------------------------------
+# Actualizar casilla de jugador
+# ---------------------------------------------------------
+
+def actualizar_dinero(game_id: int, player: str, diferencia_saldo: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+
+        if not verificar_usuario(cursor, player):
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        query_saldo = """
+            SELECT dinero
+            FROM PARTIDAS.JUGANDO
+            WHERE nombre_jugador = %s and id_partida = %s
+        """
+        cursor.execute(query_saldo, (player,game_id))
+
+        saldo_actual = cursor.fetchone()
+        
+        query_partida = """
+            UPDATE PARTIDAS.JUGANDO 
+            SET dinero = %s 
+            WHERE nombre_jugador = %s AND id_partida = %s
+        """
+        nuevo_saldo = saldo_actual + diferencia_saldo
+        cursor.execute(query_partida, (nuevo_saldo, player, game_id))
+        
+        # Guardamos los cambios
+        conn.commit()
+        return True
+
+    except Exception as e:
+        conn.rollback() # Deshacer si hay error
+        print(f"Error de BBDD al actualizar casilla: {e}") # Para que tú lo veas en la consola
+        return False # Le decimos al GameManager que falló
+        
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---------------------------------------------------------
 # FUNCIONES AUXILIARES
