@@ -27,7 +27,7 @@ async def game_endpoint(websocket: WebSocket, game_id: str, player_id: str):
                 await websocket.send_json({"error": "Formato de mensaje invalido"})
             
             except Exception as e:
-                print(f"❌ ERROR CRÍTICO EN WS: {e}")
+                print(f"ERROR CRÍTICO EN WS: {e}")
 
     except WebSocketDisconnect:
         await manager.disconnect(websocket, game_id, player_id) # ¡Correcto!
