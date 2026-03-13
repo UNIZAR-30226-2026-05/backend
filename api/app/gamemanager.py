@@ -4,6 +4,7 @@
 
 from fastapi import WebSocket
 from routers.partidas import *
+from funcionesAuxiliaresPartida import *
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
 # el cual se encargara de que si no existe crear uno nuevo
@@ -86,9 +87,6 @@ class GameManager:
                     session.board_state["balances"][player_id] = 1
                     session.board_state["turns"] = 1
                     session.board_state["order"] = len(session.players)
-
-
-
 
         # Asignarle la casilla inicial (ej. la casilla 1)
         if reconnect:
