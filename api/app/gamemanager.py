@@ -74,11 +74,15 @@ class GameManager:
 
         session.players[player_id] = websocket
         
-        if "posiciones" not in session.board_state:
-            session.board_state["posiciones"] = {}
+        if "positions" not in session.board_state:
+            session.board_state["positions"] = {}
+            session.board_state["balances"] = {}
+            session.board_state["characters"] = {}
             
-        if player_id not in session.board_state["posiciones"]:
-                    session.board_state["posiciones"][player_id] = 1
+        if player_id not in session.board_state["positions"]:
+                    session.board_state["positions"][player_id] = 1
+                    session.board_state["balances"][player_id] = 1
+
 
         # Asignarle la casilla inicial (ej. la casilla 1)
         if reconnect:
@@ -120,7 +124,17 @@ class GameManager:
         session = self.active_games[game_id]
         
         match action:
-            case "tirar_dado":
+            case "select_player":
+
+                character = payload[user]
+                session.board_state[characters][user] = character 
+                await session.broadcast({
+                    "type": "player_selected",
+                    "user": user,
+                    "character": character
+                })
+                
+            case "move_player":
                 dado = 5
                 nueva_casilla = session.board_state["posiciones"][user] + dado
                 session.board_state["posiciones"][user] = nueva_casilla
@@ -133,5 +147,6 @@ class GameManager:
                     "result": dado,
                     "nueva_casilla": nueva_casilla
                 })
+                
     
 manager = GameManager()
