@@ -79,11 +79,14 @@ class GameManager:
             session.board_state["balances"] = {}
             session.board_state["characters"] = {}
             session.board_state["turns"] = {}
+            session.board_state["order"] = {}
             
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 1
                     session.board_state["balances"][player_id] = 1
-                    session.board_state["turns"] = len
+                    session.board_state["turns"] = 1
+                    session.board_state["order"] = len(session.players)
+
 
 
 
@@ -130,7 +133,7 @@ class GameManager:
             case "select_player":
 
                 character = payload[user]
-                session.board_state[characters][user] = character 
+                session.board_state["characters"][user] = character 
                 await session.broadcast({
                     "type": "player_selected",
                     "user": user,
@@ -140,15 +143,14 @@ class GameManager:
             case "move_player":
                 
                 dado = tirarDado(pos)
-                nueva_casilla = session.board_state["posiciones"][user] + dado
-                session.board_state["posiciones"][user] = nueva_casilla
+                nueva_casilla = session.board_state["positions"][user] + dado
+                session.board_state["positions"][user] = nueva_casilla
 
                 actualizar_casilla(game_id, user, nueva_casilla)
 
                 await session.broadcast({
                     "type": "player_moved",
                     "user": user,
-                    "result": dado,
                     "nueva_casilla": nueva_casilla
                 })
                 
