@@ -113,17 +113,38 @@ class GameManager:
 
         return True
 
-    async def disconnect(self, websocket: WebSocket, game_id: int, player_id:str):
+    async def disconnect(self, websocket: WebSocket, game_id: int, player_id: str):
         if game_id in self.active_games:
             session = self.active_games[game_id]
+            
             if player_id in session.players:
+                """
+                CAUTION!!!!
 
-                session.players[player_id] = None
+                Esto es en caso de que sea waiting pero aun no esta bien implementado
+                Hay que mirarlo
+                
+                if session.status == "WAITING":
+
+                    disconnected_player = session.players[player_id]
+                    
+                    disconnected_order = disconnected_player["order"] 
+                                        
+                    # 3. Reajustamos el orden de los jugadores restantes
+                    for p_id, player in session.board_game.items():
+                        if player["order"] > disconnected["order"]:
+                            player["order"] -= 1
+                    del session.players[player_id]
+                            
+                else:
+                    session.players[player_id] = None
+
+                # 4. Avisamos a los demás que alguien se desconectó
                 await session.broadcast({
                     "type": "player_disconnected",
-                    "message": "El jugador"
+                    "message": f"El jugador {player_id} se ha desconectado."
                 })
-
+                """
     async def process_action(self, game_id: int, user: str, action: str, payload: dict = None):
         session = self.active_games[game_id]
         
