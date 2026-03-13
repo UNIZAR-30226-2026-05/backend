@@ -78,10 +78,13 @@ class GameManager:
             session.board_state["positions"] = {}
             session.board_state["balances"] = {}
             session.board_state["characters"] = {}
+            session.board_state["turns"] = {}
             
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 1
                     session.board_state["balances"][player_id] = 1
+                    session.board_state["turns"] = len
+
 
 
         # Asignarle la casilla inicial (ej. la casilla 1)
@@ -133,16 +136,17 @@ class GameManager:
                     "user": user,
                     "character": character
                 })
-                
+
             case "move_player":
-                dado = 5
+                
+                dado = tirarDado(pos)
                 nueva_casilla = session.board_state["posiciones"][user] + dado
                 session.board_state["posiciones"][user] = nueva_casilla
 
                 actualizar_casilla(game_id, user, nueva_casilla)
 
                 await session.broadcast({
-                    "type": "rolled_dice",
+                    "type": "player_moved",
                     "user": user,
                     "result": dado,
                     "nueva_casilla": nueva_casilla
