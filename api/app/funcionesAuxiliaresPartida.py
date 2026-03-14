@@ -6,7 +6,7 @@ from random import randint
 # Post: Devuelve el resultado del primer dado, el resultado del segundo y la suma
 #       return dado1, dado2, suma
 
-def tirarDado(pos: int):
+def tirarDados(pos: int):
     if pos == 1:
         extra = 6
     elif pos == 2:
@@ -17,5 +17,10 @@ def tirarDado(pos: int):
         extra = 0
 
     result1 = randint(1,6) 
-    result2 = randint(1,max)
+
+    if extra != 0:
+        result2 = randint(1,extra)
+    else: 
+        result2 = 0
+    
     return result1, result2, result1+result2  

@@ -5,6 +5,7 @@
 from fastapi import WebSocket
 from routers.partidas import *
 from funcionesAuxiliaresPartida import *
+from typing import Literal
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
 # el cual se encargara de que si no existe crear uno nuevo
@@ -15,6 +16,8 @@ class GameSession:
             self.players: dict[str, WebSocket] = {}
             self.status = "WAITING"
             self.board_state = {}
+            self.dados: dict[Literal["izq", "der"], list[int]] = {}
+            self.players_en_fin_ronda = 0
         
         @property
         def is_full(self):
@@ -111,6 +114,13 @@ class GameManager:
                     "message": "Empieza el juego"
                 })
 
+                # Sorteamos los dados de la primera ronda para que sean iguales y se lancen por orden de unión a la partida
+                for _ in range(4):
+                    dadoizq, dadoder, _ = tirarDados(4) # Posición 4 para que en la primera ronda todos partan igual
+
+                    session.dados["izq"].append(dadoizq)
+                    session.dados["der"].append(dadoder)
+
         return True
 
     async def disconnect(self, websocket: WebSocket, game_id: int, player_id: str):
@@ -118,51 +128,67 @@ class GameManager:
             session = self.active_games[game_id]
             
             if player_id in session.players:
-                """
-                CAUTION!!!!
-
-                Esto es en caso de que sea waiting pero aun no esta bien implementado
-                Hay que mirarlo
                 
                 if session.status == "WAITING":
 
-                    disconnected_player = session.players[player_id]
-                    
-                    disconnected_order = disconnected_player["order"] 
-                                        
-                    # 3. Reajustamos el orden de los jugadores restantes
-                    for p_id, player in session.board_game.items():
-                        if player["order"] > disconnected["order"]:
-                            player["order"] -= 1
-                    del session.players[player_id]
-                            
-                else:
-                    session.players[player_id] = None
+                    # obtener el orden del jugador desconectado
+                    disconnected_order = session.board_state["order"][player_id]
 
-                # 4. Avisamos a los demás que alguien se desconectó
-                await session.broadcast({
-                    "type": "player_disconnected",
-                    "message": f"El jugador {player_id} se ha desconectado."
-                })
-                """
+                    # eliminar jugador
+                    del session.players[player_id]
+                    del session.board_state["order"][player_id]
+                    del session.board_state["positions"][player_id]
+                    del session.board_state["balances"][player_id]
+
+                    # reajustar turnos
+                    for p_id, order in session.board_state["order"].items():    # Para obtener clave y valor
+                        if order > disconnected_order:
+                            session.board_state["order"][p_id] -= 1
+
     async def process_action(self, game_id: int, user: str, action: str, payload: dict = None):
         session = self.active_games[game_id]
         
         match action:
             case "select_player":
 
-                character = payload[user]
-                session.board_state["characters"][user] = character 
-                await session.broadcast({
-                    "type": "player_selected",
-                    "user": user,
-                    "character": character
-                })
+                character = payload["character"]
+
+                # Vigilamos que le toque elegir al usuario
+                num_personajes = len(session.board_state["characters"])    # Personajes ya elegidos
+
+                if num_personajes >= session.board_state["order"][user]:     # Si no le toca elegir mandamos error
+
+                    await session.players[user].send_json({"error": "No es tu turno de elección"})   # JSON a su ws
+                
+                elif character in session.board_state["characters"].values():   # Si el personaje ya se ha elegido
+
+                    await session.players[user].send_json({"error": "Personaje ya elegido"})
+
+                else:
+                    session.board_state["characters"][user] = character 
+                    await session.broadcast({
+                        "type": "player_selected",
+                        "user": user,
+                        "character": character
+                    })
+
+                    if num_personajes + 1 == 4:         # Fin de elecciones -> Inicio de partida real
+                        await session.broadcast({
+                            "type": "all_players_selected",
+                            "message": "Fin de elección de personajes"
+                        })
 
             case "move_player":
-                
-                dado = tirarDado(pos)
-                nueva_casilla = session.board_state["positions"][user] + dado
+
+                orden = session.board_state["order"].get(user)
+
+                if orden is None:
+                    return
+
+                dado1 = session.dados["izq"][orden - 1]
+                dado2 = session.dados["der"][orden - 1]
+
+                nueva_casilla = session.board_state["positions"].get(user) + dado1 + dado2
                 session.board_state["positions"][user] = nueva_casilla
 
                 actualizar_casilla(game_id, user, nueva_casilla)
@@ -170,8 +196,34 @@ class GameManager:
                 await session.broadcast({
                     "type": "player_moved",
                     "user": user,
+                    "dado1": dado1,
+                    "dado2": dado2,
                     "nueva_casilla": nueva_casilla
                 })
-                
-    
+            
+            case "end_round":
+                session.players_en_fin_ronda += 1
+
+                # Si los 4 han acabado la ronda lanzar dados y avisar al visionario
+                if session.players_en_fin_ronda == 4:
+                    session.players_en_fin_ronda = 0
+                    
+                    session.dados["izq"] = []
+                    session.dados["der"] = []
+                    sumas = []
+                    for i in range(4):
+
+                        dadoizq, dadoder, _ = tirarDados(i + 1)  # hacer 4 tiradas y guardarlas
+                        session.dados["izq"].append(dadoizq)
+                        session.dados["der"].append(dadoder)
+                        sumas.append(dadoizq + dadoder)
+
+                    # Avisamos al visionario
+                    for p_id, personaje in session.board_state["characters"].items():
+                        if personaje == "Vidente":
+                            session.players.get(p_id).send_json({
+                                "type": "dice_shown",
+                                "punt": sumas
+                            })
+
 manager = GameManager()

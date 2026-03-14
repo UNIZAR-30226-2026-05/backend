@@ -28,6 +28,7 @@ async def game_endpoint(websocket: WebSocket, game_id: str, player_id: str):
             
             except Exception as e:
                 print(f"ERROR CRÍTICO EN WS: {e}")
+                break
 
     except WebSocketDisconnect:
-        await manager.disconnect(websocket, game_id, player_id) # ¡Correcto!
+        await manager.disconnect(websocket, game_id, player_id)
