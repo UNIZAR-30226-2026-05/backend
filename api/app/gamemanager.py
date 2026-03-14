@@ -16,7 +16,7 @@ class GameSession:
             self.players: dict[str, WebSocket] = {}
             self.status = "WAITING"
             self.board_state = {}
-            self.dados: dict[Literal["izq", "der"], list[int]] = {}
+            self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
             self.players_en_fin_ronda = 0
         
         @property
@@ -88,8 +88,8 @@ class GameManager:
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 1
                     session.board_state["balances"][player_id] = 1
-                    session.board_state["turns"] = 1
-                    session.board_state["order"] = len(session.players)
+                    session.board_state["turns"][player_id] = 1
+                    session.board_state["order"][player_id] = len(session.players)
 
         # Asignarle la casilla inicial (ej. la casilla 1)
         if reconnect:
@@ -156,7 +156,7 @@ class GameManager:
                 # Vigilamos que le toque elegir al usuario
                 num_personajes = len(session.board_state["characters"])    # Personajes ya elegidos
 
-                if num_personajes >= session.board_state["order"][user]:     # Si no le toca elegir mandamos error
+                if (num_personajes + 1) != session.board_state["order"][user]:     # Si no le toca elegir mandamos error
 
                     await session.players[user].send_json({"error": "No es tu turno de elección"})   # JSON a su ws
                 
@@ -225,5 +225,9 @@ class GameManager:
                                 "type": "dice_shown",
                                 "punt": sumas
                             })
+                    
+                    #session.board_state["turn"][player_id] ++ LO INCREMENTAMOS AQUI O CON LA RESPUESTA DEL VIDENTE
+                    #FALLA: SE PUEDE TIRAR DADOS SIN QUE SEA TU TURNO
+                    #FALLA: AL DARLE A TERMINAR PARTIDA LOS 4, NO AVISA AL VIDENTE CON LOS DADOS
 
 manager = GameManager()

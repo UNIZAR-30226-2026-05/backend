@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test WebSocket Oca - Avanzado</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #222; color: #fff; }
+        input, button, select { padding: 10px; margin: 5px; font-size: 16px; }
+        #mensajes { background: #000; color: #0f0; padding: 15px; height: 350px; overflow-y: scroll; font-family: monospace; border: 1px solid #444; }
+        .panel { background: #333; padding: 15px; margin-top: 15px; border-radius: 8px; }
+        .action-btn { background: #007BFF; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        .action-btn:hover { background: #0056b3; }
+        .disconnect-btn { background: #dc3545; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        .disconnect-btn:hover { background: #c82333; }
+        .connect-btn { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        .connect-btn:hover { background: #218838; }
+    </style>
+</head>
+<body>
+
+    <h2>Simulador de Jugador - GameManager</h2>
+    
+    <div class="panel">
+        <label>ID Partida:</label>
+        <input type="number" id="id_partida" value="1" style="width: 60px;">
+        
+        <label>Tu Usuario:</label>
+        <input type="text" id="usuario" placeholder="Ej: Paco">
+        
+        <button class="connect-btn" onclick="conectar()">Conectar al Lobby</button>
+        <button class="disconnect-btn" onclick="desconectar()">Desconectar</button>
+    </div>
+    
+    <div class="panel">
+        <h3>Acciones del Juego</h3>
+        
+        <div>
+            <label>Personaje:</label>
+            <select id="personaje_select">
+                <option value="Vidente">Vidente</option>
+                <option value="Guerrero">Guerrero</option>
+                <option value="Mago">Mago</option>
+                <option value="Ladron">Ladrón</option>
+            </select>
+            <button class="action-btn" onclick="enviarSelectPlayer()">Elegir Personaje</button>
+        </div>
+        
+        <hr style="border-color: #555;">
+
+        <div>
+            <button class="action-btn" onclick="enviarMovePlayer()">Mover Jugador (Tirar dados guardados)</button>
+        </div>
+
+        <hr style="border-color: #555;">
+
+        <div>
+            <button class="action-btn" onclick="enviarEndRound()">Terminar Ronda</button>
+        </div>
+    </div>
+
+    <h3>Consola del Servidor:</h3>
+    <div id="mensajes"></div>
+
+    <script>
+        let ws = null;
+
+        function log(mensaje) {
+            const div = document.getElementById("mensajes");
+            div.innerHTML += `<div>> ${mensaje}</div>`;
+            div.scrollTop = div.scrollHeight; // Auto-scroll hacia abajo
+        }
+
+        function conectar() {
+            const partida = document.getElementById("id_partida").value;
+            const usuario = document.getElementById("usuario").value;
+
+            if(!usuario) { alert("Pon un nombre de usuario"); return; }
+
+            const url = `ws://localhost:8080/ws/partida/${partida}/${usuario}`;
+            log(`Conectando a ${url}...`);
+            
+            ws = new WebSocket(url);
+
+            ws.onopen = () => log("✅ CONECTADO AL SERVIDOR");
+            ws.onclose = () => log("❌ DESCONECTADO DEL SERVIDOR");
+            ws.onerror = (e) => log("⚠️ ERROR DE CONEXIÓN");
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📩 Recibido: ${JSON.stringify(data, null, 2)}`);
+                } catch (e) {
+                    log(`📩 Texto Recibido: ${event.data}`);
+                }
+            };
+        }
+
+        function desconectar() {
+            if(ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function enviarWebSocket(accion, payload = {}) {
+            if(!ws || ws.readyState !== WebSocket.OPEN) { 
+                alert("¡Conéctate primero y asegúrate de que el socket está abierto!"); 
+                return; 
+            }
+            
+            const mensaje = { 
+                "action": accion,
+                "payload": payload
+            };
+            
+            ws.send(JSON.stringify(mensaje));
+            log(`📤 ENVIADO: ${JSON.stringify(mensaje)}`);
+        }
+
+        function enviarSelectPlayer() {
+            const personaje = document.getElementById("personaje_select").value;
+            enviarWebSocket("select_player", { "character": personaje });
+        }
+
+        function enviarMovePlayer() {
+            // move_player no necesita payload según tu código actual
+            enviarWebSocket("move_player");
+        }
+
+        function enviarEndRound() {
+            // end_round tampoco necesita payload
+            enviarWebSocket("end_round");
+        }
+    </script>
+</body>
+</html>

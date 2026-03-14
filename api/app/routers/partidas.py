@@ -4,12 +4,11 @@ from database import get_db_connection
 from fastapi import APIRouter, HTTPException, status
 from typing import List,Dict
 import psycopg2
-from modulos.conexionEsperarPartida import ConnectionManager
+
 
 router = APIRouter()
 
 MAX_JUGADORES = 4  # Definir el número máximo de jugadores por partida
-connection_manager = ConnectionManager()
 
 # ---------------------------------------------------------
 # OBTENER PARTIDAS ACTIVAS (GET)
