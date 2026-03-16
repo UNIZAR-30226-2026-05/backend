@@ -18,20 +18,20 @@ VALUES
 
 INSERT INTO JUEGO.OBJETO(nombre, precio, descripcion)
 VALUES
-    ('Avanzar Casillas',1),
-    ('Retroceder Casillas',1),
-    ('Barrera', 2),
-    ('Mejorar Dados',1),
-    ('Empeorar Dados',1),
-    ('Ruleta',1),
-    ('Quitar Turno',1),
-    ('Salvavidas',1);
+    ('Avanzar Casillas',1, 'El jugador que elijas avanza un numero de casillas aleatorias (0-3)'),
+    ('Retroceder Casillas',1, 'El jugador que elijas retrocede un numero de casillas aleatorias (0-3)'),
+    ('Barrera', 2, 'Coloca una barrera en el tablero'),
+    ('Mejorar Dados',1, 'Mejora los dados en uno del jugador que elijas para esta tirada'),
+    ('Empeorar Dados',1, 'Empeora los dados en uno del jugador que elijas para esta tirada'),
+    ('Ruleta',1, 'Tira una ruleta para conseguir un objeto aleatorio'),
+    ('Quitar Turno',1, 'Haz que un jugador no tire en este turno'),
+    ('Salvavidas',1, 'Te salvará de tu próxima penalización que obtengas');
 
-INSERT INTO JUEGO.MINIJUEGO(nombre,descripcion)
+INSERT INTO JUEGO.MINIJUEGO(nombre)
 VALUES
-    ('Tren');
+    ('Tren'),
     ('Carrera de caballos'),
-    ('Reflejos',),
+    ('Reflejos'),
     ('Cortar barra'),
     ('Cronometro Ciego'),
     ('Mayor o Menor'),
@@ -41,45 +41,46 @@ VALUES
 
 INSERT INTO JUEGO.MINIJUEGO_DINERO(nombre,descripcion)
 VALUES
-    ('Mano de Poker'),
-    ('Doble o Nada');
+    ('Mano de Poker', 'Jugareis una mano entre todos'),
+    ('Dilema del Prisionero', 'Elige entre pactar o traicionar'),
+    ('Doble o Nada', 'O ganas o pierdes');
 
 INSERT INTO JUEGO.MINIJUEGO_ELECCION(nombre,descripcion)
 VALUES  
-    ('Tren');
-    ('Carrera de caballos'),
-    ('Reflejos',),
-    ('Cortar barra'),
-    ('Cronometro Ciego'),
-    ('Mayor o Menor');
+    ('Tren', 'Pasajeros al tren, cuenta bien'),
+    ('Carrera de caballos', 'Quien ganara...'),
+    ('Reflejos','¿Ser rapido es tu virtud?'),
+    ('Cortar barra', 'Corta por la mitad para ganar'),
+    ('Cronometro Ciego', 'Manten la concentracion y no pierdas el tiempo'),
+    ('Mayor o Menor', 'Pues mas o menos');
 
-INSERT INTO JUEGO.CASILLA(numero)
-VALUES
-    (0),        -- Casilla de salida
-    (1),
-    (4),
-    (5),
-    (6),
-    (8),
-    (13),
-    (20),
-    (21),
-    (27),
-    (28),
-    (34),
-    (36),
-    (40),
-    (44),
-    (48),
-    (52),
-    (56),
-    (59),
-    (63),
-    (65),
-    (68),
-    (69),
-    (70),
-    (71);       -- Casilla final
+INSERT INTO JUEGO.CASILLA(numero, tipo) -- ERROR:  new row for relation "casilla" violates check constraint "numero_correcto"
+--DETAIL:  Failing row contains (0, normal).
+VALUES  -- TODAS A NORMAL, CAMBIAR!!!
+    (0, 'normal'),        -- Casilla de salida
+    (1, 'normal'),
+    (4, 'normal'),
+    (5, 'normal'),
+    (6, 'normal'),
+    (8, 'normal'),
+    (13, 'normal'),
+    (20, 'normal'),
+    (21, 'normal'),
+    (27, 'normal'),
+    (28, 'normal'),
+    (34, 'normal'),
+    (36, 'normal'),
+    (40, 'normal'),
+    (44, 'normal'),
+    (48, 'normal'),
+    (52, 'normal'),
+    (56, 'normal'),
+    (59, 'normal'),
+    (63, 'normal'),
+    (65, 'normal'),
+    (68, 'normal'),
+    (69, 'normal'),
+    (71, 'normal');       -- Casilla final
 
 INSERT INTO JUEGO.C_MOV(numero, movimiento)
 VALUES
@@ -102,20 +103,21 @@ VALUES
     (70, -5);  
 
 INSERT INTO JUEGO.C_OBJ(numero,ruleta)
-VALUES
-    (2, 1),
-    (12, 1),
-    (23, 1),
-    (31, 1),
-    (41, 1),
-    (50, 1),
-    (60, 1),
-    (18, 0),
-    (24, 0),
-    (38, 0),
-    (45, 0),
-    (58, 0),
-    (64, 0);
+VALUES  -- ERROR:  column "ruleta" is of type bit but expression is of type integer
+        -- LINE 3:     (2, 1),
+    (2, B'1'),
+    (12, B'1'),
+    (23, B'1'),
+    (31, B'1'),
+    (41, B'1'),
+    (50, B'1'),
+    (60, B'1'),
+    (18, B'0'),
+    (24, B'0'),
+    (38, B'0'),
+    (45, B'0'),
+    (58, B'0'),
+    (64, B'0');
 
 INSERT INTO JUEGO.C_MINI(numero, minijuego)
 VALUES

@@ -68,20 +68,20 @@ CREATE TABLE JUEGO.OBJETO(
 CREATE TABLE JUEGO.CASILLA(
     numero INTEGER PRIMARY KEY,
     tipo VARCHAR(50) NOT NULL, -- 'normal', 'objeto', 'minijuego', 'movimiento'
-    CONSTRAINT numero_correcto CHECK ( numero > 0 and numero < 72 )
+    CONSTRAINT numero_correcto CHECK ( numero >= 0 and numero < 72 )
 );
 
 CREATE TABLE JUEGO.C_MINI(
     numero INTEGER PRIMARY KEY,
     minijuego VARCHAR(50) NOT NULL,
     CONSTRAINT fk_minijuego FOREIGN KEY(minijuego) REFERENCES JUEGO.MINIJUEGO_DINERO(nombre),
-    CONSTRAINT numero_correcto CHECK ( numero > 0 and numero < 72 )
+    CONSTRAINT numero_correcto CHECK ( numero >= 0 and numero < 72 )
 );
 
 CREATE TABLE JUEGO.C_OBJ(
     numero INTEGER PRIMARY KEY,
     ruleta BIT NOT NULL,    -- 0 para intercambio, 1 para ruleta
-    CONSTRAINT numero_correcto CHECK ( numero > 0 and numero < 72 )
+    CONSTRAINT numero_correcto CHECK ( numero >= 0 and numero < 72 )
 );
 
 CREATE TABLE JUEGO.C_MOV(
