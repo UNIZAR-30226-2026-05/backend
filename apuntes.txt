@@ -7,3 +7,21 @@ action = "tirar_dado" -> Lo llama cada usuario antes de entrar al minijuego para
 action = "mover" -> Si casilla == 72 (avisar a todos y cerrar sockets), que hay en la casilla
 
 action = "minijuego"
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+- activar_habilidad -> Implementar la del banquero
+                       vidente NADA -> YA ENVIAMOS INFO
+                       envío y esperar respuesta del videojugador -> ESPERAR respuesta DEL videojugador para empezar minijuego
+                       Reducir penalizaciones del escapista     # Solo comprobarlo cada vez que se penalice
+
+- saltar_turno -> QUE LO HAGA EL FRONT CON UN TIMER
+
+** cambiar move_player para comprobar casilla en la que hemos caído, comprobar_barreras, ...
+
+- comprar_obj (y utilizarlo) -> PAYLOAD CON EL OBJETO y user a utilizar
+
+- minijuego -> PAYLOAD CON minijuego CORRESPONDIENTE Y SU INFORMACIÓN
+
+CAMBIAR POBLAR TABLAS 

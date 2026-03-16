@@ -6,6 +6,8 @@ from fastapi import WebSocket
 from routers.partidas import *
 from funcionesAuxiliaresPartida import *
 from typing import Literal
+from routers.juego import *
+import random
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
 # el cual se encargara de que si no existe crear uno nuevo
@@ -17,7 +19,7 @@ class GameSession:
             self.status = "WAITING"
             self.board_state = {}
             self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
-            self.players_en_fin_ronda = 0
+            self.players_en_fin_ronda = 0       # Jugadores que han acabado la ronda
         
         @property
         def is_full(self):
@@ -221,13 +223,39 @@ class GameManager:
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
                         if personaje == "Vidente":
-                            session.players.get(p_id).send_json({
+                            await session.players.get(p_id).send_json({
                                 "type": "dice_shown",
                                 "punt": sumas
+                            })
+                        
+                        if personaje == 'Videojugador':
+                            minijuegos = listar_minijuegos()
+                            dos_juegos = random.sample(minijuegos, 2)
+
+                            # Creamos un diccionario con los minijuegos elegidos 
+                            resultado = [MinijuegoInfo(nombre=juego[0], descripcion=juego[1]).model_dump() for juego in dos_juegos]
+
+                            await session.players.get(p_id).send_json({
+                                "type": "choose_minijuego",
+                                "minijuegos": resultado
                             })
                     
                     #session.board_state["turn"][player_id] ++ LO INCREMENTAMOS AQUI O CON LA RESPUESTA DEL VIDENTE
                     #FALLA: SE PUEDE TIRAR DADOS SIN QUE SEA TU TURNO
                     #FALLA: AL DARLE A TERMINAR PARTIDA LOS 4, NO AVISA AL VIDENTE CON LOS DADOS
+                    # OBSERVACIÓN: avisar al vidente siempre?? 
+                
+            case "ini_round":
+                if session.board_state["characters"].get(user) == 'Videojugador':   # Si el user es el videojugador, iniciamos minijuego
+                    minijuego = payload["minijuego"]
+                    descripcion = payload["descripcion"]
+                    
+                    await session.broadcast({
+                        "type": "ini_minijuego",
+                        "minijuego": minijuego,
+                        "descripcion": descripcion,
+                        "estado_partida": session.board_state
+                    })
+
 
 manager = GameManager()
