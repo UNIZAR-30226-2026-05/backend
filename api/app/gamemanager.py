@@ -81,11 +81,11 @@ class GameManager:
         session.players[player_id] = websocket
         
         if "positions" not in session.board_state:
-            session.board_state["positions"] = {}
-            session.board_state["balances"] = {}
-            session.board_state["characters"] = {}
-            session.board_state["turns"] = {}
-            session.board_state["order"] = {}
+            session.board_state["positions"] = {} # Casilla en la que está cada jugador
+            session.board_state["balances"] = {} # Dinero que le queda a cada jugador
+            session.board_state["characters"] = {} # Personaje para cada jugador
+            session.board_state["turns"] = {} # Ronda en la que nos encontramos
+            session.board_state["order"] = {} # Orden de tirada para cada ronda
             
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 1
@@ -181,10 +181,19 @@ class GameManager:
                         })
 
             case "move_player":
-
+                # Obtenemos el orden del jugador para esta ronda
                 orden = session.board_state["order"].get(user)
 
                 if orden is None:
+                    return
+
+                # A quién le toca tirar ahora
+                turno_actual = session.players_en_fin_ronda + 1
+
+                if orden != turno_actual:
+                    await session.players[user].send_json({
+                        "error": f"No es tu turno. Le toca al jugador {turno_actual}"
+                    })
                     return
 
                 dado1 = session.dados["izq"][orden - 1]
@@ -219,6 +228,9 @@ class GameManager:
                         session.dados["izq"].append(dadoizq)
                         session.dados["der"].append(dadoder)
                         sumas.append(dadoizq + dadoder)
+
+                    for p_id in session.board_state["turns"]:
+                        session.board_state["turns"][p_id] += 1
 
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
