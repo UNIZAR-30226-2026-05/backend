@@ -231,6 +231,7 @@ class GameManager:
 
                     for p_id in session.board_state["turns"]:
                         session.board_state["turns"][p_id] += 1
+                        session.board_state["balances"][p_id] += 1
 
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
@@ -240,25 +241,17 @@ class GameManager:
                                 "punt": sumas
                             })
                         
-                        if personaje == 'Videojugador':
-                            minijuegos = listar_minijuegos()
-                            dos_juegos = random.sample(minijuegos, 2)
-
-                            # Creamos un diccionario con los minijuegos elegidos 
-                            resultado = [MinijuegoInfo(nombre=juego[0], descripcion=juego[1]).model_dump() for juego in dos_juegos]
+                        if personaje == "Videojugador":
+                            minijuegos = listar_minijuegos_eleccion()
+                            dos_minijuegos = random.sample(minijuegos, 2)
 
                             await session.players.get(p_id).send_json({
                                 "type": "choose_minijuego",
-                                "minijuegos": resultado
+                                "minijuegos": dos_minijuegos
                             })
-                    
-                    #session.board_state["turn"][player_id] ++ LO INCREMENTAMOS AQUI O CON LA RESPUESTA DEL VIDENTE
-                    #FALLA: SE PUEDE TIRAR DADOS SIN QUE SEA TU TURNO
-                    #FALLA: AL DARLE A TERMINAR PARTIDA LOS 4, NO AVISA AL VIDENTE CON LOS DADOS
-                    # OBSERVACIÓN: avisar al vidente siempre?? 
                 
             case "ini_round":
-                if session.board_state["characters"].get(user) == 'Videojugador':   # Si el user es el videojugador, iniciamos minijuego
+                if session.board_state["characters"].get(user) == "Videojugador":   # Si el user es el videojugador, iniciamos minijuego
                     minijuego = payload["minijuego"]
                     descripcion = payload["descripcion"]
                     
@@ -269,5 +262,29 @@ class GameManager:
                         "estado_partida": session.board_state
                     })
 
+            case "banquero":
+                if session.board_state["characters"].get(user) == "Banquero":
+                    penalizado = payload["robar_a"]     # Usuario al que robamos
+
+
+                    if session.board_state["characters"].get(user) == "Escapista":  # Si es el escapiste solo le podemos quitar 1
+                        if session.board_state["balances"][penalizado] > 1: # Si tiene mínimo 1 moneda se la quitamos
+                            session.board_state["balances"][user] += 1
+                            session.board_state["balances"][penalizado] -= 1
+
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
+
+                    else:   # Si no es el escapista le quitamos 2
+                        if session.board_state["balances"][penalizado] > 2: # Si tiene mínimo 2 monedas se la quitamos
+                            session.board_state["balances"][user] += 2
+                            session.board_state["balances"][penalizado] -= 2
+
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
 
 manager = GameManager()

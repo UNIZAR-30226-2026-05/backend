@@ -176,3 +176,22 @@ def listar_minijuegos():
     finally:
         cursor.close()
         conn.close()
+
+# ---------------------------------------------------------
+# LEER MINIJUEGOS ELECCIÓN (GET) 
+# ---------------------------------------------------------
+@router.get("/minijuegos_eleccion/", response_model=List[MinijuegoInfo])
+def listar_minijuegos_eleccion():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("SELECT * FROM JUEGO.MINIJUEGO_ELECCION")
+        
+        resultados = cursor.fetchall() # Trae TODOS como una lista
+        
+        return resultados
+        
+    finally:
+        cursor.close()
+        conn.close()

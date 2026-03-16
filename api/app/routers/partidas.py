@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException, status
 from typing import List,Dict
 import psycopg2
 
-
 router = APIRouter()
 
 MAX_JUGADORES = 4  # Definir el número máximo de jugadores por partida
