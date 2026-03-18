@@ -58,6 +58,18 @@
         </div>
     </div>
 
+    <!-- NUEVO PANEL VIDEOJUGADOR -->
+    <div class="panel" id="panel_minijuegos" style="display:none;">
+        <h3>🎮 Elegir Minijuego (Videojugador)</h3>
+        
+        <div>
+            <label>Minijuego:</label>
+            <select id="minijuego_select"></select>
+        </div>
+
+        <button class="action-btn" onclick="enviarMinijuego()">Iniciar Minijuego</button>
+    </div>
+
     <h3>Consola del Servidor:</h3>
     <div id="mensajes"></div>
 
@@ -67,7 +79,7 @@
         function log(mensaje) {
             const div = document.getElementById("mensajes");
             div.innerHTML += `<div>> ${mensaje}</div>`;
-            div.scrollTop = div.scrollHeight; // Auto-scroll hacia abajo
+            div.scrollTop = div.scrollHeight;
         }
 
         function conectar() {
@@ -83,12 +95,18 @@
 
             ws.onopen = () => log("✅ CONECTADO AL SERVIDOR");
             ws.onclose = () => log("❌ DESCONECTADO DEL SERVIDOR");
-            ws.onerror = (e) => log("⚠️ ERROR DE CONEXIÓN");
+            ws.onerror = () => log("⚠️ ERROR DE CONEXIÓN");
             
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     log(`📩 Recibido: ${JSON.stringify(data, null, 2)}`);
+
+                    // NUEVO: detectar minijuegos
+                    if (data.type === "choose_minijuego") {
+                        mostrarMinijuegos(data.minijuegos);
+                    }
+
                 } catch (e) {
                     log(`📩 Texto Recibido: ${event.data}`);
                 }
@@ -123,13 +141,43 @@
         }
 
         function enviarMovePlayer() {
-            // move_player no necesita payload según tu código actual
             enviarWebSocket("move_player");
         }
 
         function enviarEndRound() {
-            // end_round tampoco necesita payload
             enviarWebSocket("end_round");
+        }
+
+        // NUEVO: mostrar minijuegos
+        function mostrarMinijuegos(minijuegos) {
+            const panel = document.getElementById("panel_minijuegos");
+            const select = document.getElementById("minijuego_select");
+
+            select.innerHTML = "";
+
+            minijuegos.forEach(juego => {
+                const option = document.createElement("option");
+                option.value = juego.nombre || juego;
+                option.textContent = juego.nombre || juego;
+                option.dataset.descripcion = juego.descripcion || "Sin descripción";
+                select.appendChild(option);
+            });
+
+            panel.style.display = "block";
+        }
+
+        // NUEVO: enviar selección al backend
+        function enviarMinijuego() {
+            const select = document.getElementById("minijuego_select");
+            const selectedOption = select.options[select.selectedIndex];
+
+            const minijuego = selectedOption.value;
+            const descripcion = selectedOption.dataset.descripcion;
+
+            enviarWebSocket("ini_round", {
+                minijuego: minijuego,
+                descripcion: descripcion
+            });
         }
     </script>
 </body>
