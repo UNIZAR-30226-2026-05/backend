@@ -54,9 +54,9 @@ VALUES
     ('Cronometro Ciego', 'Manten la concentracion y no pierdas el tiempo'),
     ('Mayor o Menor', 'Pues mas o menos');
 
-INSERT INTO JUEGO.CASILLA(numero, tipo) -- ERROR:  new row for relation "casilla" violates check constraint "numero_correcto"
---DETAIL:  Failing row contains (0, normal).
-VALUES  -- TODAS A NORMAL, CAMBIAR!!!
+-- CAMBIAR CASILLAS ACORDES AL TABLERO
+INSERT INTO JUEGO.CASILLA(numero, tipo)
+VALUES
     (0, 'normal'),        -- Casilla de salida
     (1, 'normal'),
     (4, 'normal'),
@@ -103,8 +103,7 @@ VALUES
     (70, -5);  
 
 INSERT INTO JUEGO.C_OBJ(numero,ruleta)
-VALUES  -- ERROR:  column "ruleta" is of type bit but expression is of type integer
-        -- LINE 3:     (2, 1),
+VALUES
     (2, B'1'),
     (12, B'1'),
     (23, B'1'),
