@@ -4,6 +4,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 from gamemanager import manager
 from schemas import PlayerAction
+import traceback
 
 router = APIRouter()
 
@@ -28,7 +29,8 @@ async def game_endpoint(websocket: WebSocket, game_id: str, player_id: str):
             
             except Exception as e:
                 print(f"ERROR CRÍTICO EN WS: {e}")
-                break
+                traceback.print_exc()
+                await websocket.send_json({"error": f"Error interno en el servidor: {e}"})
 
     except WebSocketDisconnect:
         await manager.disconnect(websocket, game_id, player_id)

@@ -195,3 +195,41 @@ def listar_minijuegos_eleccion():
     finally:
         cursor.close()
         conn.close()
+
+def obtenerTipoCasilla(numCasilla: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        query = "SELECT * FROM JUEGO.CASILLA WHERE numero = %s"
+        cursor.execute(query,(numCasilla,))
+        resultado = cursor.fetchone()
+
+        if resultado:
+            return "normal", None
+
+        query = "SELECT * FROM JUEGO.C_MOV WHERE numero = %s"
+        cursor.execute(query,(numCasilla,))
+        resultado = cursor.fetchone()
+        if resultado:
+            return "mov", resultado['movimiento']
+
+        query = "SELECT * FROM JUEGO.C_OBJ WHERE numero = %s"
+        cursor.execute(query,(numCasilla,))
+        resultado = cursor.fetchone()
+
+        if resultado:
+            return "obj", resultado['ruleta']
+        
+        query = "SELECT * FROM JUEGO.C_MINI WHERE numero = %s"
+        cursor.execute(query,(numCasilla,))
+        resultado = cursor.fetchone()
+
+        if resultado:
+            return "mini", resultado['minijuego']
+        print(f"⚠️ AVISO: La casilla {numCasilla} no existe en la BD. Forzando tipo 'normal'.")
+        return "normal", None
+
+    finally:
+        cursor.close()
+        conn.close()

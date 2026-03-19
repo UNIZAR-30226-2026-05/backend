@@ -4,6 +4,7 @@
 
 from fastapi import WebSocket
 from routers.partidas import *
+from routers.juego import *
 from funcionesAuxiliaresPartida import *
 from typing import Literal
 from routers.juego import *
@@ -211,7 +212,25 @@ class GameManager:
                     "dado2": dado2,
                     "nueva_casilla": nueva_casilla
                 })
-            
+
+                tipo_casilla,extra = obtenerTipoCasilla(nueva_casilla)
+                
+                await session.broadcast({
+                    "type": "tipo_casilla",
+                    "casilla": tipo_casilla,
+                    "extra": extra
+                })
+                
+                if tipo_casilla == 'mov':
+                    nueva_casilla = session.board_state["positions"].get(user) + extra
+                    session.board_state["positions"][user] = nueva_casilla
+                    actualizar_casilla(game_id, user, nueva_casilla)
+                    await session.broadcast({
+                        "type": "player_moved",
+                        "user": user,
+                        "nueva_casilla": nueva_casilla
+                    })
+                
             case "end_round":
                 session.players_en_fin_ronda += 1
 
