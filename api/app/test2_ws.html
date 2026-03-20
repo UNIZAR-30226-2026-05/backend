@@ -39,8 +39,8 @@
             <select id="personaje_select">
                 <option value="Vidente">Vidente</option>
                 <option value="Videojugador">Videojugador</option>
-                <option value="Mago">Mago</option>
-                <option value="Ladron">Ladrón</option>
+                <option value="Escapista">Escapista</option>
+                <option value="Banquero">Banquero</option> <!-- HACER QUE SEA EL 4o para poder robar a todos-->
             </select>
             <button class="action-btn" onclick="enviarSelectPlayer()">Elegir Personaje</button>
         </div>
@@ -70,11 +70,26 @@
         <button class="action-btn" onclick="enviarMinijuego()">Iniciar Minijuego</button>
     </div>
 
+    <!-- NUEVO PANEL BANQUERO -->
+    <div class="panel" id="panel_banquero" style="display:none;">
+        <h3>💰 Robar Monedas (Banquero)</h3>
+        
+        <div>
+            <label>Robar a:</label>
+            <select id="victimas_select"></select>
+        </div>
+
+        <button class="action-btn" onclick="enviarRoboMonedas()">Robar Monedas</button>
+    </div>
+
     <h3>Consola del Servidor:</h3>
     <div id="mensajes"></div>
 
     <script>
         let ws = null;
+        let mi_usuario = "";
+        let mi_personaje = "";
+        let jugadores = {};
 
         function log(mensaje) {
             const div = document.getElementById("mensajes");
@@ -88,6 +103,7 @@
 
             if(!usuario) { alert("Pon un nombre de usuario"); return; }
 
+            mi_usuario = usuario;
             const url = `ws://localhost:8080/ws/partida/${partida}/${usuario}`;
             log(`Conectando a ${url}...`);
             
@@ -101,6 +117,25 @@
                 try {
                     const data = JSON.parse(event.data);
                     log(`📩 Recibido: ${JSON.stringify(data, null, 2)}`);
+
+                    // Detectar cuando se elige personaje
+                    if (data.type === "player_selected") {
+                        jugadores[data.user] = data.character;
+                        
+                        // Si soy yo quien eligió Banquero, muestro el panel
+                        if (data.user === mi_usuario && data.character === "Banquero") {
+                            mi_personaje = "Banquero";
+                            document.getElementById("panel_banquero").style.display = "block";
+                            actualizarVictimas();
+                        }
+                    }
+
+                    // Actualizar lista de víctimas cuando cambian los balances (después de cada ronda)
+                    if (data.type === "balances_changed") {
+                        if (mi_personaje === "Banquero") {
+                            actualizarVictimas();
+                        }
+                    }
 
                     // NUEVO: detectar minijuegos
                     if (data.type === "choose_minijuego") {
@@ -117,6 +152,9 @@
             if(ws) {
                 ws.close();
                 ws = null;
+                mi_usuario = "";
+                mi_personaje = "";
+                jugadores = {};
             }
         }
 
@@ -146,6 +184,37 @@
 
         function enviarEndRound() {
             enviarWebSocket("end_round");
+        }
+
+        // Actualizar lista de otras víctimas disponibles
+        function actualizarVictimas() {
+            const select = document.getElementById("victimas_select");
+            select.innerHTML = "";
+
+            // Mostrar todos los jugadores excepto yo
+            for (const usuario in jugadores) {
+                if (usuario !== mi_usuario) {
+                    const option = document.createElement("option");
+                    option.value = usuario;
+                    option.textContent = usuario + " (" + jugadores[usuario] + ")";
+                    select.appendChild(option);
+                }
+            }
+        }
+
+        // NUEVO: enviar robo de monedas
+        function enviarRoboMonedas() {
+            const select = document.getElementById("victimas_select");
+            const victima = select.value;
+
+            if (!victima) {
+                alert("Debes seleccionar a quién robar");
+                return;
+            }
+
+            enviarWebSocket("banquero", {
+                "robar_a": victima
+            });
         }
 
         // NUEVO: mostrar minijuegos
