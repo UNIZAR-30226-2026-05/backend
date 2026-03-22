@@ -1,7 +1,8 @@
 from schemas import JoinPartida
 from database import get_db_connection
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from usuarios import obtener_usuario_actual
 from typing import List,Dict
 import psycopg2
 
@@ -35,13 +36,13 @@ def obtener_partidas_activas():
 # CREAR PARTIDA (POST)
 # ---------------------------------------------------------
 @router.post("/crear_partida", status_code=status.HTTP_201_CREATED, response_model=int)
-def crear_partida(usuario: str):
+def crear_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
     conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
         # Verificar que el usuario existe
-        if(not verificar_usuario(cursor, usuario)):
+        if(not verificar_usuario(cursor, usuario_actual)):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
         # Crear partida activa con valores iniciales
@@ -55,7 +56,7 @@ def crear_partida(usuario: str):
         query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
                                 "VALUES (%s, %s, NULL, 0, 1, 1)"
 
-        cursor.execute(query_crear_jugando, (usuario, nueva_partida_id,))
+        cursor.execute(query_crear_jugando, (usuario_actual, nueva_partida_id,))
 
         conn.commit()
         return nueva_partida_id
@@ -76,7 +77,7 @@ def crear_partida(usuario: str):
 # UNIRSE A PARTIDA (POST)
 # ---------------------------------------------------------
 @router.post("/unirse_partida", status_code=status.HTTP_201_CREATED, response_model=int)
-async def unirse_partida(usuario: JoinPartida):
+async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obtener_usuario_actual) ):
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -84,12 +85,12 @@ async def unirse_partida(usuario: JoinPartida):
         # VIGILAR QUE UNA PARTIDA NO SE LLENE
 
         # Verificar que el usuario existe
-        if(not verificar_usuario(cursor, usuario.usuario)):
+        if(not verificar_usuario(cursor, usuario_actual)):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
         # Verificar que existe la partida
         query_partida = "SELECT id FROM PARTIDAS.PARTIDA_ACTIVA WHERE id = %s"
-        cursor.execute(query_partida, (usuario.id_partida,))
+        cursor.execute(query_partida, (datos.id_partida,))
         resultado_partida = cursor.fetchone()
         
         if not resultado_partida:
@@ -99,16 +100,16 @@ async def unirse_partida(usuario: JoinPartida):
         query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
                                 "VALUES (%s, %s, NULL, 0, 1, 1)"
 
-        cursor.execute(query_crear_jugando, (usuario.usuario, usuario.id_partida,))
+        cursor.execute(query_crear_jugando, (usuario_actual, datos.id_partida,))
 
         query_conteo = "SELECT COUNT(*) as total FROM PARTIDAS.JUGANDO WHERE id_partida = %s"
-        cursor.execute(query_conteo, (usuario.id_partida,))
+        cursor.execute(query_conteo, (datos.id_partida,))
         resultado_conteo = cursor.fetchone()
         cantidad_actual = resultado_conteo['total']
 
         conn.commit()
 
-        return usuario.id_partida
+        return datos.id_partida
         
     except psycopg2.IntegrityError as e:
         conn.rollback() #  deshacer si hay error

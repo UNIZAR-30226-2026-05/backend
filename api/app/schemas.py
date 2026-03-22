@@ -27,7 +27,6 @@ class UsuarioRegistro(BaseModel):
     password: str = Field(..., min_length=8, max_length=72, example="secreto123")
 
 class JoinPartida(BaseModel):
-    usuario: str = Field(..., min_length=3, max_length=50, example="paquito")
     id_partida: int = Field(..., gt=0, example=1)
 
 # --- MODELOS DE SALIDA (Lo que devolvemos al frontend) ---

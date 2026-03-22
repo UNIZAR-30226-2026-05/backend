@@ -227,7 +227,7 @@ def obtenerTipoCasilla(numCasilla: int):
 
         if resultado:
             return "mini", resultado['minijuego']
-        print(f"⚠️ AVISO: La casilla {numCasilla} no existe en la BD. Forzando tipo 'normal'.")
+        print(f"AVISO: La casilla {numCasilla} no existe en la BD. Forzando tipo 'normal'.")
         return "normal", None
 
     finally:
