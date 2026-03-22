@@ -2,7 +2,7 @@ from schemas import JoinPartida
 from database import get_db_connection
 
 from fastapi import APIRouter, HTTPException, status, Depends
-from usuarios import obtener_usuario_actual
+from .usuarios import obtener_usuario_actual
 from typing import List,Dict
 import psycopg2
 

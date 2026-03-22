@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test WebSocket Oca - Seguridad y Minijuegos</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #222; color: #fff; }
+        input, button, select { padding: 10px; margin: 5px; font-size: 16px; border-radius: 4px; border: 1px solid #555; background: #333; color: white; }
+        #mensajes { background: #000; color: #0f0; padding: 15px; height: 350px; overflow-y: scroll; font-family: monospace; border: 1px solid #444; }
+        .panel { background: #333; padding: 15px; margin-top: 15px; border-radius: 8px; border-left: 5px solid #007BFF; }
+        .panel-login { border-left-color: #ffc107; }
+        .panel-game { border-left-color: #28a745; }
+        .panel-mini { border-left-color: #e83e8c; }
+        .action-btn { background: #007BFF; color: white; border: none; cursor: pointer; }
+        .action-btn:hover { background: #0056b3; }
+        .disconnect-btn { background: #dc3545; color: white; border: none; cursor: pointer; }
+        .disconnect-btn:hover { background: #c82333; }
+        .connect-btn { background: #28a745; color: white; border: none; cursor: pointer; }
+        .connect-btn:hover { background: #218838; }
+        .warning { color: #ffc107; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+
+    <h2>Simulador Completo - GameManager + JWT</h2>
+    
+    <div class="panel panel-login">
+        <h3>🔑 1. Autenticación (Login)</h3>
+        <label>Usuario:</label>
+        <input type="text" id="login_user" placeholder="Ej: Edu1">
+        
+        <label>Contraseña:</label>
+        <input type="password" id="login_pass" placeholder="Tu contraseña">
+        
+        <button class="action-btn" style="background:#ffc107; color:black;" onclick="hacerLogin()">Hacer Login</button>
+        <span id="login_status" class="warning">❌ Sin Token</span>
+    </div>
+
+    <div class="panel panel-game">
+        <h3>🔌 2. Conexión al Lobby</h3>
+        <label>ID Partida:</label>
+        <input type="number" id="id_partida" value="1" style="width: 60px;">
+        
+        <button class="connect-btn" onclick="conectar()">Conectar al WebSocket</button>
+        <button class="disconnect-btn" onclick="desconectar()">Desconectar</button>
+    </div>
+    
+    <div class="panel">
+        <h3>🎲 3. Acciones del Juego</h3>
+        
+        <div>
+            <label>Personaje:</label>
+            <select id="personaje_select">
+                <option value="Vidente">Vidente</option>
+                <option value="Videojugador">Videojugador</option>
+                <option value="Escapista">Escapista</option>
+                <option value="Banquero">Banquero</option>
+            </select>
+            <button class="action-btn" onclick="enviarSelectPlayer()">Elegir Personaje</button>
+        </div>
+        
+        <hr style="border-color: #555;">
+
+        <div>
+            <button class="action-btn" onclick="enviarMovePlayer()">Mover Jugador (Tirar dados)</button>
+        </div>
+
+        <hr style="border-color: #555;">
+
+        <div>
+            <button class="action-btn" onclick="enviarEndRound()">Terminar Ronda</button>
+        </div>
+    </div>
+
+    <div class="panel" id="panel_eleccion_minijuegos" style="display:none;">
+        <h3>🎮 Elegir Minijuego (Solo Videojugador)</h3>
+        <div>
+            <label>Minijuego:</label>
+            <select id="minijuego_select"></select>
+        </div>
+        <button class="action-btn" onclick="enviarEleccionMinijuego()">Iniciar Minijuego</button>
+    </div>
+
+    <div class="panel" id="panel_banquero" style="display:none;">
+        <h3>💰 Robar Monedas (Solo Banquero)</h3>
+        <div>
+            <label>Robar a:</label>
+            <select id="victimas_select"></select>
+        </div>
+        <button class="action-btn" onclick="enviarRoboMonedas()">Robar Monedas</button>
+    </div>
+
+    <div class="panel panel-mini" id="panel_jugar_minijuego" style="display:none;">
+        <h3 id="titulo_minijuego">🕹️ Jugando Minijuego: ???</h3>
+        <p id="desc_minijuego" style="font-size: 0.9em; color: #ccc;">Descripción del minijuego...</p>
+        
+        <div>
+            <label>Mi puntuación (ej. milisegundos o diferencia):</label>
+            <input type="number" id="score_input" placeholder="Ej: 350" style="width: 100px;">
+        </div>
+        
+        <button class="action-btn" style="background:#e83e8c;" onclick="enviarScoreMinijuego()">Enviar Puntuación</button>
+    </div>
+
+    <h3>Consola del Servidor:</h3>
+    <div id="mensajes"></div>
+
+    <script>
+        let ws = null;
+        let mi_usuario = "";
+        let mi_token = ""; // Guardaremos el JWT aquí
+        let mi_personaje = "";
+        let jugadores = {};
+
+        function log(mensaje) {
+            const div = document.getElementById("mensajes");
+            div.innerHTML += `<div>> ${mensaje}</div>`;
+            div.scrollTop = div.scrollHeight;
+        }
+
+        // ==========================================
+        // 1. SISTEMA DE LOGIN (NUEVO)
+        // ==========================================
+        async function hacerLogin() {
+            const user = document.getElementById("login_user").value;
+            const pass = document.getElementById("login_pass").value;
+
+            if (!user || !pass) { alert("Rellena usuario y contraseña"); return; }
+
+            // OAuth2PasswordRequestForm requiere x-www-form-urlencoded
+            const params = new URLSearchParams();
+            params.append('username', user);
+            params.append('password', pass);
+
+            try {
+                log(`Realizando petición POST a /login para ${user}...`);
+                const response = await fetch("http://localhost:8080/usuarios/login", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    mi_token = data.access_token;
+                    mi_usuario = user;
+                    document.getElementById("login_status").innerHTML = "✅ Token Obtenido";
+                    document.getElementById("login_status").style.color = "#28a745";
+                    log(`🔑 Login Exitoso. Token guardado.`);
+                } else {
+                    const err = await response.json();
+                    alert("Error en login: " + (err.detail || "Credenciales inválidas"));
+                }
+            } catch (error) {
+                log(`❌ Error de conexión con la API de Login: ${error}`);
+            }
+        }
+
+        // ==========================================
+        // 2. CONEXIÓN WEBSOCKET SEGURA
+        // ==========================================
+        function conectar() {
+            const partida = document.getElementById("id_partida").value;
+
+            if (!mi_token) { alert("¡Debes hacer Login primero para obtener el token!"); return; }
+
+            // NUEVA URL CON TOKEN
+            const url = `ws://localhost:8080/ws/partida/${partida}?token=${mi_token}`;
+            log(`Conectando a ${url}...`);
+            
+            ws = new WebSocket(url);
+
+            ws.onopen = () => log("✅ CONECTADO AL SERVIDOR WS");
+            ws.onclose = (event) => log(`❌ DESCONECTADO (Código: ${event.code}, Razón: ${event.reason})`);
+            ws.onerror = () => log("⚠️ ERROR DE CONEXIÓN WS");
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📩 Recibido: ${JSON.stringify(data, null, 2)}`);
+
+                    // Gestión visual de paneles según los eventos:
+                    if (data.type === "player_selected") {
+                        jugadores[data.user] = data.character;
+                        if (data.user === mi_usuario && data.character === "Banquero") {
+                            mi_personaje = "Banquero";
+                            document.getElementById("panel_banquero").style.display = "block";
+                            actualizarVictimas();
+                        }
+                    }
+
+                    if (data.type === "balances_changed" && mi_personaje === "Banquero") {
+                        actualizarVictimas();
+                    }
+
+                    if (data.type === "choose_minijuego") {
+                        mostrarEleccionMinijuegos(data.minijuegos);
+                    }
+
+                    // NUEVO: Cuando arranca un minijuego, mostramos el panel para poner la puntuación
+                    if (data.type === "ini_minijuego") {
+                        document.getElementById("panel_eleccion_minijuegos").style.display = "none";
+                        document.getElementById("titulo_minijuego").innerText = `🕹️ Jugando: ${data.minijuego}`;
+                        document.getElementById("desc_minijuego").innerText = data.descripcion;
+                        document.getElementById("panel_jugar_minijuego").style.display = "block";
+                    }
+
+                    // NUEVO: Cuando se resuelve el minijuego, ocultamos el panel
+                    if (data.type === "minijuego_resultados") {
+                        document.getElementById("panel_jugar_minijuego").style.display = "none";
+                        alert("¡Minijuego terminado! Revisa la consola para ver el nuevo orden de turnos. Ya puedes mover.");
+                    }
+
+                } catch (e) {
+                    log(`📩 Texto Recibido: ${event.data}`);
+                }
+            };
+        }
+
+        function desconectar() {
+            if(ws) {
+                ws.close();
+                ws = null;
+                jugadores = {};
+            }
+        }
+
+        // ==========================================
+        // 3. ENVÍO DE ACCIONES
+        // ==========================================
+        function enviarWebSocket(accion, payload = {}) {
+            if(!ws || ws.readyState !== WebSocket.OPEN) { 
+                alert("¡Conéctate primero y asegúrate de que el socket está abierto!"); 
+                return; 
+            }
+            const mensaje = { "action": accion, "payload": payload };
+            ws.send(JSON.stringify(mensaje));
+            log(`📤 ENVIADO: ${JSON.stringify(mensaje)}`);
+        }
+
+        function enviarSelectPlayer() {
+            const personaje = document.getElementById("personaje_select").value;
+            enviarWebSocket("select_player", { "character": personaje });
+        }
+
+        function enviarMovePlayer() { enviarWebSocket("move_player"); }
+        function enviarEndRound() { enviarWebSocket("end_round"); }
+
+        function actualizarVictimas() {
+            const select = document.getElementById("victimas_select");
+            select.innerHTML = "";
+            for (const usuario in jugadores) {
+                if (usuario !== mi_usuario) {
+                    const option = document.createElement("option");
+                    option.value = usuario;
+                    option.textContent = usuario + " (" + jugadores[usuario] + ")";
+                    select.appendChild(option);
+                }
+            }
+        }
+
+        function enviarRoboMonedas() {
+            const victima = document.getElementById("victimas_select").value;
+            if (!victima) return alert("Debes seleccionar a quién robar");
+            enviarWebSocket("banquero", { "robar_a": victima });
+        }
+
+        function mostrarEleccionMinijuegos(minijuegos) {
+            const panel = document.getElementById("panel_eleccion_minijuegos");
+            const select = document.getElementById("minijuego_select");
+            select.innerHTML = "";
+            minijuegos.forEach(juego => {
+                const option = document.createElement("option");
+                option.value = juego.nombre || juego[0]; // Soporta diccionarios o tuplas
+                option.textContent = juego.nombre || juego[0];
+                option.dataset.descripcion = juego.descripcion || juego[1] || "Sin descripción";
+                select.appendChild(option);
+            });
+            panel.style.display = "block";
+        }
+
+        function enviarEleccionMinijuego() {
+            const select = document.getElementById("minijuego_select");
+            const opt = select.options[select.selectedIndex];
+            enviarWebSocket("ini_round", { minijuego: opt.value, descripcion: opt.dataset.descripcion });
+        }
+
+        // NUEVO: Enviar la puntuación del minijuego
+        function enviarScoreMinijuego() {
+            const scoreVal = document.getElementById("score_input").value;
+            if (scoreVal === "") return alert("Introduce una puntuación válida");
+            
+            enviarWebSocket("score_minijuego", { score: parseFloat(scoreVal) });
+            
+            // Limpiamos el input para el futuro
+            document.getElementById("score_input").value = "";
+            document.getElementById("panel_jugar_minijuego").style.display = "none";
+            log("⏳ Esperando a que el resto de jugadores envíen su puntuación...");
+        }
+    </script>
+</body>
+</html>

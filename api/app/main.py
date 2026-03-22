@@ -1,12 +1,22 @@
 #IMporta routers y los registra (app.include_router(usuarios.router))
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from routers import usuarios
 from routers import juego
 from routers import partidas
 from routers import websocket
 
 app = FastAPI()  # Esta es la variable que busca Uvicorn
+
+# Añade este bloque de configuración CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite POST, GET, OPTIONS...
+    allow_headers=["*"],
+)
 
 # Conectamos el archivo usuarios.py al sistema principal
 app.include_router(
