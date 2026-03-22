@@ -24,3 +24,10 @@ def tirarDados(pos: int):
         result2 = 0
     
     return result1, result2, result1+result2  
+
+# Cuando tenemos un ranking de un minijiuego en tuplas, queremos obtener el valor numérico
+# de la puntuación para poder ordenarlo
+def obtener_puntuacion(tupla):
+    # 'tupla' es ("Edu1", 300)
+    # Devuelve el elemento en la posición 1 (los puntos)
+    return tupla[1]

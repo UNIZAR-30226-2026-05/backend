@@ -21,6 +21,9 @@ class GameSession:
             self.board_state = {}
             self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
             self.players_en_fin_ronda = 0       # Jugadores que han acabado la ronda
+            
+            self.minijuego_actual = None 
+            self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410...}
         
         @property
         def is_full(self):
@@ -272,6 +275,7 @@ class GameManager:
             case "ini_round":
                 if session.board_state["characters"].get(user) == "Videojugador":   # Si el user es el videojugador, iniciamos minijuego
                     minijuego = payload["minijuego"]
+                    session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
                     
                     await session.broadcast({
@@ -326,6 +330,57 @@ class GameManager:
                     await session.players[user].send_json({
                         "error": f"No eres banquero"
                     })
+            
+            case "score_minijuego":
+                score = payload["score"]
+                session.minijuego_scores[user] = score
+                
+                 # Si ya han terminado el minijeugo los 4 jugadores
+                if len(session.minijuego_scores) == 4:
+                    
+                    # Ordenar según el minijuego que sea
+                    if session.minijuego_actual == "Reflejos":
+                        # En el de reflejos gana el menor tiempo (de menor a mayor)
+                        
+                            #items() convierte el diccionario {"Edu1": 300, "Edu2": 200...} en una lista de tuplas:
+                            #[("Edu1", 300), ("Edu2", 200)...]. Con key indicamos la parte de la tupla en la que se tiene
+                            # que basar para ordenar.
+                        ranking = sorted(session.minijuego_scores.items(), key=obtener_puntuacion)
+                        
+                    elif session.minijuego_actual == "Mayor o Menor":
+                        # Gana la carta más alta. Ordenamos de mayor a menor con reverse=True
+                        ranking = sorted(session.minijuego_scores.items(), key=obtener_puntuacion, reverse=True)
+                        
+                    # AÑADIR ELIF PARA EL RESTO DE MINIJUEGOS (O, SI COINDICE PONER OR... EN LAS CONDICIONES ANTERIORES PARA EL RESTO DE MINIJUEGOS)    
+                    else:
+                        # Por defecto ordenamos de menor a mayor
+                        ranking = sorted(session.minijuego_scores.items(), key=obtener_puntuacion)
+
+                    # Vamos rellenando un diccionario con la posición de cada usuairo y la puntuación que ha conseguido
+                    # para después hacer un broadcast con todo al frontend
+                    resultados_front = {}
+                    
+                    for indice, (player_id, puntuacion) in enumerate(ranking):
+                        posicion = indice + 1
+                        
+                        # IMPORTANTE ACTUALIZAR EL ORDEN DEL ESTADO DE LA PARTIDA
+                        session.board_state["order"][player_id] = posicion
+                        
+                        # Rellenamos resulado para este jugador
+                        resultados_front[player_id] = {
+                            "posicion": posicion,
+                            "score": puntuacion
+                        }
+                    
+                    #Limpieza ante ssiguiente ronda
+                    session.minijuego_scores = {}
+                    session.minijuego_actual = None
+
+                    await session.broadcast({
+                        "type": "minijuego_resultados",
+                        "resultados": resultados_front,
+                        "nuevo_orden": session.board_state["order"]
+                    })   
                     
 
 manager = GameManager()
