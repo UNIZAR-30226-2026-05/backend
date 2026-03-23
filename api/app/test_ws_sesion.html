@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Lobby WS</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .box { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        #log { height: 200px; width: 100%; overflow-y: scroll; background: #eee; }
+    </style>
+</head>
+<body>
+    <h2>Test Menú Principal (WebSocket)</h2>
+    
+    <div class="box">
+        <label>Usuario: <input type="text" id="username" placeholder="juan"></label><br><br>
+        <label>Token JWT: <input type="text" id="token" placeholder="eyJhbG..."></label><br><br>
+        <button onclick="conectar()">Conectar al Lobby</button>
+        <button onclick="desconectar()">Desconectar</button>
+    </div>
+
+    <div class="box">
+        <h4>Enviar Acción de Prueba</h4>
+        <textarea id="jsonInput" rows="5" cols="40">
+{
+    "action": "invite_friend",
+    "payload": {
+        "friend_id": "maria",
+        "game_id": "sala_123"
+    }
+}
+        </textarea><br>
+        <button onclick="enviarMensaje()">Enviar Acción</button>
+    </div>
+
+    <h4>Mensajes del Servidor:</h4>
+    <textarea id="log" readonly></textarea>
+
+    <script>
+        let ws;
+        const logArea = document.getElementById("log");
+
+        function log(msg) {
+            logArea.value += msg + "\n";
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function conectar() {
+            const user = document.getElementById("username").value;
+            const token = document.getElementById("token").value;
+            
+            // Cambia localhost:8000 por tu puerto si es distinto
+            const wsUrl = `ws://localhost:8000/ws/usuario/${user}?token=${token}`;
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => log(`[CONECTADO] a ${wsUrl}`);
+            
+            ws.onmessage = (event) => {
+                log(`[RECIBIDO] ${event.data}`);
+            };
+            
+            ws.onclose = (event) => log(`[DESCONECTADO] Código: ${event.code}`);
+            ws.onerror = (error) => log(`[ERROR] Revisa la consola`);
+        }
+
+        function desconectar() {
+            if (ws) ws.close();
+        }
+
+        function enviarMensaje() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert("Primero debes conectar el WebSocket");
+                return;
+            }
+            const data = document.getElementById("jsonInput").value;
+            ws.send(data);
+            log(`[ENVIADO] ${data}`);
+        }
+    </script>
+</body>
+</html>
