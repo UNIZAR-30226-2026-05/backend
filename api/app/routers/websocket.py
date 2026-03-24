@@ -1,5 +1,3 @@
-# Recibe la conexion, valida el mensaje y se lo pasa a gamemanager
-
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 from gamemanager import manager
@@ -108,7 +106,6 @@ async def active_session(websocket: WebSocket, user: str, token: str):
     # --- 2. CONEXIÓN AL LOBBY ---
     await lobby_manager.connect(websocket, player_id)
     
-    # --- 3. BUCLE DE MENSAJES DEL MENÚ ---
     try:
         while True:
             data = await websocket.receive_json()

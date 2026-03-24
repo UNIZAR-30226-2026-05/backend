@@ -54,10 +54,8 @@ class SessionManager:
                 if target_friend and lobby_manager.is_user_online(target_friend):
                     await lobby_manager.send_personal_message(target_friend, {
                         "action": "receive_invite",
-                        "payload": {
-                            "from_user": player_id,
-                            "game_id": game_id_to_join
-                        }
+                        "from_user": player_id,
+                        "game_id": game_id_to_join
                     })
                 else:
                     await websocket.send_json({"error": "El usuario no está conectado"})
