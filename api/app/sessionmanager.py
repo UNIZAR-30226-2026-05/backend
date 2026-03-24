@@ -3,15 +3,16 @@ from routers.usuarios import *
 
 class SessionManager:
     def __init__(self):
-        # Diccionario para guardar { "nombre_usuario": WebSocket }
         self.active_users: dict[str, WebSocket] = {}
 
     async def connect(self, websocket: WebSocket, player_id: str):
-        await websocket.accept()
+        # BORRAR O COMENTAR ESTA LÍNEA:
+        # await websocket.accept()  <--- ¡Peligro de doble accept!
+        
         self.active_users[player_id] = websocket
         # Avisamos a sus amigos de que está online
         await self.broadcast_status_to_friends(player_id, "online")
-
+        
     async def disconnect(self, player_id: str):
         if player_id in self.active_users:
             del self.active_users[player_id]

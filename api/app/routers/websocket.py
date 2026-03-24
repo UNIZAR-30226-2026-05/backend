@@ -71,15 +71,23 @@ async def game_endpoint(websocket: WebSocket, game_id: str, token: str):
     except WebSocketDisconnect:
         await manager.disconnect(websocket, game_id, player_id)
 
+# ---------------------------------------------
+# SESION
+# ---------------------------------------------
+
 @router.websocket("/ws/usuario/{user}")
 async def active_session(websocket: WebSocket, user: str, token: str):
-    # --- 1. VALIDACIÓN DE TOKEN ---
+    # 1. ACEPTAMOS LA CONEXIÓN PRIMERO
+    await websocket.accept()
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         player_id = payload.get("sub")
+        
         if player_id is None:
             await websocket.close(code=1008, reason="Token vacío")
             return
+            
         # Comprobamos en la base de datos que la sesión sigue activa
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -93,12 +101,14 @@ async def active_session(websocket: WebSocket, user: str, token: str):
             return
         
     except Exception as e:
-        await websocket.close(code=1008)
+        # ¡ESTO ES CRÍTICO PARA SABER QUÉ FALLA!
+        print(f"🔥 ERROR en validación de WS para {user}: {e}") 
+        await websocket.close(code=1008, reason="Error interno o token inválido")
         return
 
     # --- 2. CONEXIÓN AL LOBBY ---
     await lobby_manager.connect(websocket, player_id)
-
+    
     # --- 3. BUCLE DE MENSAJES DEL MENÚ ---
     try:
         while True:

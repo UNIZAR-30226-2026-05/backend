@@ -245,3 +245,44 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     finally:
         cursor.close()
         conn.close()
+
+# ---------------------------------------------------------
+#  AÑADIR A AMIGOS(POST)
+# ---------------------------------------------------------
+@router.post("/amigos")
+def annadirAmigos(user1: str, user2: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        check_query = """
+            SELECT 1 FROM USUARIOS.AMIGOS 
+            WHERE (usuario1 = %s AND usuario2 = %s) 
+               OR (usuario1 = %s AND usuario2 = %s)
+        """
+        cursor.execute(check_query, (user1, user2, user2, user1))
+        
+        ya_son_amigos = cursor.fetchone()
+        
+        if ya_son_amigos:
+            print(f"{user1} y {user2} ya eran amigos. Operación cancelada.")
+            return False
+            
+        insert_query = """
+            INSERT INTO USUARIOS.AMIGOS (usuario1, usuario2) VALUES (%s, %s)
+        """
+        cursor.execute(insert_query, (user1, user2))
+        conn.commit()
+        
+        return cursor.rowcount > 0
+
+    except Exception as e:
+        print(f"Error en la base de datos al añadir amigo: {e}")
+        conn.rollback() # Por si la base de datos se queda bloqueada
+        return False
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+

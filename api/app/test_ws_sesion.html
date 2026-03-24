@@ -50,8 +50,7 @@
             const token = document.getElementById("token").value;
             
             // Cambia localhost:8000 por tu puerto si es distinto
-            const wsUrl = `ws://localhost:8000/ws/usuario/${user}?token=${token}`;
-            
+            const wsUrl = `ws://127.0.0.1:8080/ws/usuario/${user}?token=${token}`;            
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => log(`[CONECTADO] a ${wsUrl}`);
