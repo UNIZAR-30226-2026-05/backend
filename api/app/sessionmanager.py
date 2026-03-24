@@ -45,7 +45,41 @@ class SessionManager:
                     "friend_id": user,
                     "status": status 
                 })
+    async def process_action(self, user: str, action: str, payload: dict = None):
+        match action:
+            case "invite_friend":
+                target_friend = action_data.payload.get("friend_id")
+                game_id_to_join = action_data.payload.get("game_id") 
+                
+                if target_friend and lobby_manager.is_user_online(target_friend):
+                    await lobby_manager.send_personal_message(target_friend, {
+                        "action": "receive_invite",
+                        "payload": {
+                            "from_user": player_id,
+                            "game_id": game_id_to_join
+                        }
+                    })
+                else:
+                    await websocket.send_json({"error": "El usuario no está conectado"})
 
+            case "get_online_friends":
+                 # 1. Sacamos los amigos de la BBDD
+                amigos_db = obtener_todos_amigos_user(player_id)
+                
+                # 2. Filtramos los que están conectados ahora mismo
+                amigos_conectados = []
+                for amigo in amigos_db:
+                    friend_id = amigo['nombre']
+                    if lobby_manager.is_user_online(friend_id):
+                        amigos_conectados.append(friend_id)
+                
+                # 3. Se lo enviamos al jugador
+                await websocket.send_json({
+                    "action": "online_friends_list",
+                    "payload": {
+                        "friends": amigos_conectados
+                    }
+                })
 
 
 # Instancia global para usar en tus rutas

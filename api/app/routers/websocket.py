@@ -101,8 +101,7 @@ async def active_session(websocket: WebSocket, user: str, token: str):
             return
         
     except Exception as e:
-        # ¡ESTO ES CRÍTICO PARA SABER QUÉ FALLA!
-        print(f"🔥 ERROR en validación de WS para {user}: {e}") 
+        print(f"ERROR en validación de WS para {user}: {e}") 
         await websocket.close(code=1008, reason="Error interno o token inválido")
         return
 
@@ -117,54 +116,16 @@ async def active_session(websocket: WebSocket, user: str, token: str):
             try:
                 action_data = PlayerAction(**data)
                 
-                # Gestión de acciones del menú principal
-                if action_data.action == "invite_friend":
-                    # El jugador quiere invitar a un amigo
-                    target_friend = action_data.payload.get("friend_id")
-                    game_id_to_join = action_data.payload.get("game_id") # La sala que ha creado
-                    
-                    if target_friend and lobby_manager.is_user_online(target_friend):
-                        # Le mandamos la invitación al amigo
-                        await lobby_manager.send_personal_message(target_friend, {
-                            "action": "receive_invite",
-                            "payload": {
-                                "from_user": player_id,
-                                "game_id": game_id_to_join
-                            }
-                        })
-                    else:
-                        # Opcional: Avisar de que el amigo no está conectado
-                        await websocket.send_json({"error": "El usuario no está conectado"})
-
-                elif action_data.action == "get_online_friends":
-                    # 1. Sacamos los amigos de la BBDD
-                    amigos_db = obtener_todos_amigos_user(player_id)
-                    
-                    # 2. Filtramos los que están conectados ahora mismo
-                    amigos_conectados = []
-                    for amigo in amigos_db:
-                        friend_id = amigo['nombre']
-                        if lobby_manager.is_user_online(friend_id):
-                            amigos_conectados.append(friend_id)
-                    
-                    # 3. Se lo enviamos al jugador
-                    await websocket.send_json({
-                        "action": "online_friends_list",
-                        "payload": {
-                            "friends": amigos_conectados
-                        }
-                    }) 
-
-                else:
-                    await websocket.send_json({"error": "Acción no reconocida en el menú"})
+                await lobby_manager.process_action(user, action_data.action, action_data.payload)
 
             except ValidationError:
                 await websocket.send_json({"error": "Formato de mensaje invalido"})
             
             except Exception as e:
-                print(f"Error procesando acción del menú: {e}")
+                print(f"ERROR CRÍTICO EN WS: {e}")
+                traceback.print_exc()
+                await websocket.send_json({"error": f"Error interno en el servidor: {e}"})
 
     except WebSocketDisconnect:
-        # --- 4. DESCONEXIÓN ---
         await lobby_manager.disconnect(player_id)
 
