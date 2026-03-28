@@ -1,13 +1,13 @@
 INSERT INTO USUARIOS.USUARIO (nombre, password) 
 VALUES 
-    ('Eduardo', 'Eduardo'),
-    ('Lorien', 'Lorien'),
-    ('Alexit', 'Alexit'),
-    ('Alonso', 'Alonso'),
-    ('Juanma', 'Juanma'),
-    ('Dani', 'Dani'),
-    ('Salas', 'Salas'),
-    ('Aritz', 'Aritz');
+    ('Eduardo', '$2b$12$fgsc6y4lf27fMRBAwmjPkOIL55uA8zOSi.KdQTr.VfSXHd6zl7FbO'),
+    ('Lorien', '$2b$12$ftpTFKR/kF3qDouKX/PDf.dgEnIh9qFARstmGYBhnUFieJ/SUSRyK'),
+    ('Alexit', '$2b$12$0xT6lkg.9aHG3OqP1O5U4uF1.jWcuHNG8/JWMIbCC0gYJbfdXejvW'),
+    ('Alonso', '$2b$12$4CdEomaDwyjXwGeWNFz42e5aHdYBcaU9gCZiJ3FbGK6Y5UUsAJFWa'),
+    ('Juanma', '$2b$12$cCoDk1mu/QyywlXuwWcTHueIl81Hnpu8pD6FaPiaT3d/sThXTStWC'),
+    ('Dani', '$2b$12$M3wGjXpJKLTg6v5EanQ8AuL93TItFBDLfjPnR7zxyPq6GAY5nGWYS'),
+    ('Salas', '$2b$12$CqEvGpDBZCVn85SahVgbkeuVVquNENWw/ryHiYuFVhZ.zu3itodAu'),
+    ('Aritz', '$2b$12$d.QZOKG1AYWBxq1P/PNuJuXHkn.pE/Fw2c9cZ1buFjxtsmZP1pfiC');
 
 INSERT INTO JUEGO.PERSONAJE(nombre, habilidad, descripcion)
 VALUES
