@@ -75,7 +75,7 @@ async def game_endpoint(websocket: WebSocket, game_id: str, token: str):
 
 @router.websocket("/ws/usuario/{user}")
 async def active_session(websocket: WebSocket, user: str, token: str):
-    # 1. ACEPTAMOS LA CONEXIÓN PRIMERO
+    # ACEPTAMOS LA CONEXIÓN PRIMERO
     await websocket.accept()
 
     try:
@@ -103,7 +103,7 @@ async def active_session(websocket: WebSocket, user: str, token: str):
         await websocket.close(code=1008, reason="Error interno o token inválido")
         return
 
-    # --- 2. CONEXIÓN AL LOBBY ---
+    # CONEXIÓN AL LOBBY
     await lobby_manager.connect(websocket, player_id)
     
     try:
