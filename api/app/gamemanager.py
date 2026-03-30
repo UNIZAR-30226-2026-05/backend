@@ -22,8 +22,9 @@ class GameSession:
             self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
             self.players_en_fin_ronda = 0       # Jugadores que han acabado la ronda
             
-            self.minijuego_actual = None 
-            self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410...}
+            self.minijuego_actual = None
+            self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...}
+            self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
         
         @property
         def is_full(self):
@@ -277,13 +278,32 @@ class GameManager:
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
-                    
+
+                    match minijuego:
+                        case "Tren":
+                            # REVISAR ALEATORIO
+                            session.minijuego_detalles = {"objetivo": random.randint(1, 20)}                 
+                        case "Reflejos":
+                            session.minijuego_detalles = {"objetivo": random.randint(2000, 5000)}    # Valores en ms
+                        case "Mayor o Menor":
+                            # Generamos 4 cartas aleatorias para cada jugador. El valor de la carta será la puntuación que tengan que enviar los jugadores al acabar el minijuego
+                            session.minijuego_detalles = {"cartas": [v + random.randint(0, 3) * 13 for v in random.sample(range(13), 4)]}
+                        case "Cronometro ciego":
+                            session.minijuego_detalles = {"objetivo": random.randint(5, 15)}    # Segundos que el jugador tiene que contar
+                        case "Cortar pan":
+                            session.minijuego_detalles = {"objetivo": 50}    # Mitad del pan
+
                     await session.broadcast({
                         "type": "ini_minijuego",
                         "minijuego": minijuego,
                         "descripcion": descripcion,
-                        "estado_partida": session.board_state
+                        "estado_partida": session.board_state,
+                        # En el caso de tren y cronometro ciego es un objetivo a conseguir, 
+                        # en el caso de reflejos es un tiempo a superar y en mayor o menor son las cartas 
+                        # que se han repartido a los jugadores
+                        "detalles": session.minijuego_detalles
                     })
+                        
 
             case "banquero":
                 if session.board_state["characters"].get(user) == "Banquero":
@@ -351,10 +371,12 @@ class GameManager:
                         # Gana la carta más alta. Ordenamos de mayor a menor con reverse=True
                         ranking = sorted(session.minijuego_scores.items(), key=obtener_puntuacion, reverse=True)
                         
-                    # AÑADIR ELIF PARA EL RESTO DE MINIJUEGOS (O, SI COINDICE PONER OR... EN LAS CONDICIONES ANTERIORES PARA EL RESTO DE MINIJUEGOS)    
                     else:
-                        # Por defecto ordenamos de menor a mayor
-                        ranking = sorted(session.minijuego_scores.items(), key=obtener_puntuacion)
+                        # Por defecto nos quedamos con el valor absoluto de la diferencia entre la puntuación del jugador y la referencia del minijuego (tiempo objetivo, valor objetivo de la carta, etc). El ganador será el que esté más cerca del
+                        objetivo = payload["objetivo"]
+                        ranking = ordenar_por_cercania(session.minijuego_scores.items(), objetivo)
+
+                    deshacer_empates(ranking)
 
                     # Vamos rellenando un diccionario con la posición de cada usuairo y la puntuación que ha conseguido
                     # para después hacer un broadcast con todo al frontend

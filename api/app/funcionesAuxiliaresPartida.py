@@ -31,3 +31,39 @@ def obtener_puntuacion(tupla):
     # 'tupla' es ("Edu1", 300)
     # Devuelve el elemento en la posición 1 (los puntos)
     return tupla[1]
+
+# Obtener ranking según la cercanía a un objetivo. 
+# El ranking se ordena de menor a mayor diferencia absoluta entre la puntuación del jugador y el objetivo
+def ordenar_por_cercania(minijuego_scores, objetivo: int):
+    # Función auxiliar para calcular la diferencia absoluta
+    def diferencia(tupla):
+        puntuacion = obtener_puntuacion(tupla)
+        return abs(puntuacion - objetivo)
+
+    # Ordenar usando la función auxiliar
+    return sorted(minijuego_scores, key=diferencia)
+
+import random
+
+def deshacer_empates(ranking: list):
+    # Agrupar por puntuación
+    grupos = {}
+    for nombre, puntuacion in ranking:
+        if puntuacion not in grupos:
+            grupos[puntuacion] = []
+        grupos[puntuacion].append((nombre, puntuacion))
+    
+    # Ordenar puntuaciones de mayor a menor por grupos
+    puntuaciones_ordenadas = sorted(grupos.keys(), reverse=True)
+    
+    resultado = []
+    
+    for puntuacion in puntuaciones_ordenadas:
+        grupo = grupos[puntuacion]
+        
+        # Si hay empate mezclamos el grupo de jugadores con la misma puntuación
+        if len(grupo) > 1:
+            random.shuffle(grupo)
+        
+        # Añadir al resultado
+        resu
