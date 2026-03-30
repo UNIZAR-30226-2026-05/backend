@@ -9,7 +9,7 @@ from routers import websocket
 
 app = FastAPI()  # Esta es la variable que busca Uvicorn
 
-# Añade este bloque de configuración CORS
+# Bloque de configuración CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
