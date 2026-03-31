@@ -152,6 +152,12 @@ class GameManager:
                         if order > disconnected_order:
                             session.board_state["order"][p_id] -= 1
 
+                    await session.broadcast({
+                        "type": "player_disconnected",
+                        "players_connected": [p for p in session.players.keys()],
+                        "message": f"Jugador {player_id} se ha desconectado"
+                    })
+
     async def process_action(self, game_id: int, user: str, action: str, payload: dict = None):
         session = self.active_games[game_id]
         
@@ -234,6 +240,35 @@ class GameManager:
                         "user": user,
                         "nueva_casilla": nueva_casilla
                     })
+
+                # VIGILAR CASO EN EL QUE HAYA DOS JUGADORES EN LA MISMA CASILLA (DILEMA PRISIONERO)
+
+                if tipo_casilla == 'mini':
+                    # Tenemos que avisar al frontend del minijuego que ha caído
+                    await session.broadcast({
+                        "type": "minijuego_casilla",
+                        "user": user,
+                        "minijuego": extra,
+                        "descripcion": obtener_descripcion_minijuego_casilla(extra)
+                    })
+
+
+                if tipo_casilla == 'obj':
+                    # Tenemos que avisar al frontend del objeto que ha caído
+                    if extra == 1:   # Tenemos que sortear un objeto aleatorio para el jugador
+                        objeto = obtener_objeto_aleatorio()
+                        await session.broadcast({
+                            "type": "obtener_objeto",
+                            "user": user,
+                            "objeto": objeto["nombre"],
+                            "descripcion": objeto["descripcion"]
+                        })
+
+                    else:  # Tenemos que intercambiar objetos entre jugadores. Avisamos al usuario para que elija con quién intercambiar
+                        await session.players[user].send_json({
+                            "type": "intercambiar_objeto",
+                            "message": "Elige un jugador para intercambiar objeto",
+                        })
                 
             case "end_round":
                 session.players_en_fin_ronda += 1

@@ -55,7 +55,7 @@ class PersonajesInfo(BaseModel):
     descripcion: str = Field(..., example="Es el personaje que puede controlar...")
 
 class ObjetoResponse(BaseModel):
-    objeto: str
+    nombre: str
     precio: int
     descripcion: str
 

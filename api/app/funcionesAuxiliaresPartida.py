@@ -66,4 +66,6 @@ def deshacer_empates(ranking: list):
             random.shuffle(grupo)
         
         # Añadir al resultado
-        resu
+        resultado.extend(grupo)
+    
+    return resultado

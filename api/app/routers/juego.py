@@ -102,7 +102,7 @@ def obtener_objeto_aleatorio():
     
     try:
         query = """
-            SELECT objeto, precio, descripcion
+            SELECT nombre, precio, descripcion
             FROM JUEGO.OBJETO
             ORDER BY RANDOM()
             LIMIT 1; 
@@ -229,6 +229,31 @@ def obtenerTipoCasilla(numCasilla: int):
             return "mini", resultado['minijuego']
         print(f"AVISO: La casilla {numCasilla} no existe en la BD. Forzando tipo 'normal'.")
         return "normal", None
+
+    finally:
+        cursor.close()
+        conn.close()
+
+# Función para obtener la descripción de un minijuego de una casilla dado su nombre
+def obtener_descripcion_minijuego_casilla(minijuego: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        query = "SELECT descripcion FROM JUEGO.MINIJUEGO_DINERO WHERE nombre = %s"
+        cursor.execute(query,(minijuego,))
+
+        resultado = cursor.fetchone()
+
+        return resultado["descripcion"] if resultado else None
+    
+    except psycopg2.IntegrityError as e:
+        conn.rollback() 
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         cursor.close()

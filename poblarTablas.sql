@@ -11,10 +11,10 @@ VALUES
 
 INSERT INTO JUEGO.PERSONAJE(nombre, habilidad, descripcion)
 VALUES
-    ('Banquero', 'Shalom', 'Como me gusta ciudad de Tel Aviv'),
-    ('Videojugador', 'Jugar', 'Viva vegetta777'),
-    ('Escapista', 'Escapar','Me fui klk'),
-    ('Vidente', 'Ver', 'Te veo los pensamientos');
+    ('Banquero', 'Prestamo sin devolución', 'Lo que seria un prestamo, vamos, un robo'),
+    ('Videojugador', 'El juego en tus manos', 'Decidiras cual sera el siguiente minijuego para elegir orden'),
+    ('Escapista', 'Reduccion de penalizaciones','Ninguna penalizacion te afectara como al resto de personajes'),
+    ('Vidente', 'Vision anticipada', 'Podras ver el resultado de los dados antes de jugar el minijuego de eleccion de orden de tirada');
 
 INSERT INTO JUEGO.OBJETO(nombre, precio, descripcion)
 VALUES
@@ -30,10 +30,9 @@ VALUES
 INSERT INTO JUEGO.MINIJUEGO(nombre)
 VALUES
     ('Tren'),
-    ('Carrera de caballos'),
     ('Reflejos'),
-    ('Cortar barra'),
-    ('Cronometro Ciego'),
+    ('Cortar pan'),
+    ('Cronometro ciego'),
     ('Mayor o Menor'),
     ('Mano de Poker'),
     ('Doble o Nada'),
@@ -48,10 +47,9 @@ VALUES
 INSERT INTO JUEGO.MINIJUEGO_ELECCION(nombre,descripcion)
 VALUES  
     ('Tren', 'Pasajeros al tren, cuenta bien'),
-    ('Carrera de caballos', 'Quien ganara...'),
     ('Reflejos','¿Ser rapido es tu virtud?'),
-    ('Cortar barra', 'Corta por la mitad para ganar'),
-    ('Cronometro Ciego', 'Manten la concentracion y no pierdas el tiempo'),
+    ('Cortar pan', 'Corta por la mitad para ganar'),
+    ('Cronometro ciego', 'Manten la concentracion y no pierdas el tiempo'),
     ('Mayor o Menor', 'Pues mas o menos');
 
 -- CAMBIAR CASILLAS ACORDES AL TABLERO
