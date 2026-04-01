@@ -52,7 +52,6 @@ VALUES
     ('Cronometro ciego', 'Manten la concentracion y no pierdas el tiempo'),
     ('Mayor o Menor', 'Pues mas o menos');
 
--- CAMBIAR CASILLAS ACORDES AL TABLERO
 INSERT INTO JUEGO.CASILLA(numero, tipo)
 VALUES
     (0, 'normal'),        -- Casilla de salida
@@ -62,23 +61,28 @@ VALUES
     (6, 'normal'),
     (8, 'normal'),
     (13, 'normal'),
+    (17, 'normal'),
     (20, 'normal'),
-    (21, 'normal'),
-    (27, 'normal'),
-    (28, 'normal'),
+    (22, 'normal'),
+    (25, 'normal'),
+    (30, 'normal'),
+    (32, 'normal'),
     (34, 'normal'),
     (36, 'normal'),
     (40, 'normal'),
     (44, 'normal'),
     (48, 'normal'),
+    (50, 'normal'),
     (52, 'normal'),
+    (54, 'normal'),
     (56, 'normal'),
     (59, 'normal'),
     (63, 'normal'),
     (65, 'normal'),
+    (67, 'normal'),
     (68, 'normal'),
     (69, 'normal'),
-    (71, 'normal');       -- Casilla final
+    (71, 'final');       -- Casilla final
 
 INSERT INTO JUEGO.C_MOV(numero, movimiento)
 VALUES
@@ -87,15 +91,15 @@ VALUES
     (10, 3),   
     (11, -5),  
     (16, -3),  
-    (19, 3),   
-    (25, -5),  
-    (29, 5),   
-    (33, -5),  
+    (19, 3), 
+    (27, -5),
+    (29, 3),   
+    (33, -3),  
     (37, -3),  
     (39, 5),   
     (43, -3),  
-    (49, 3),   
-    (53, -5),  
+    (49, 3), 
+    (55, -3), 
     (57, -5),  
     (61, -5),  
     (70, -5);  
@@ -104,31 +108,33 @@ INSERT INTO JUEGO.C_OBJ(numero,ruleta)
 VALUES
     (2, B'1'),
     (12, B'1'),
-    (23, B'1'),
-    (31, B'1'),
-    (41, B'1'),
-    (50, B'1'),
-    (60, B'1'),
     (18, B'0'),
+    (23, B'1'),
     (24, B'0'),
+    (31, B'1'),
     (38, B'0'),
+    (41, B'1'),
     (45, B'0'),
     (58, B'0'),
+    (60, B'1'),
     (64, B'0');
 
 INSERT INTO JUEGO.C_MINI(numero, minijuego)
 VALUES
-    (9, 'Doble o Nada'),
-    (14, 'Dilema del Prisionero'),
-    (22, 'Doble o Nada'),
+    (9, 'Dilema del Prisionero'),
+    (14, 'Doble o Nada'),
+    (15, 'Mano de Poker'),
+    (21, 'Doble o Nada'),
     (26, 'Dilema del Prisionero'),
     (35, 'Doble o Nada'),
-    (42, 'Doble o Nada'),
-    (47, 'Dilema del Prisionero'),
-    (54, 'Doble o Nada'),
-    (62, 'Doble o Nada'),
-    (66, 'Dilema del Prisionero'),
-    (15, 'Mano de Poker'),
-    (32, 'Mano de Poker'),
+    (42, 'Dilema del Prisionero'),
     (46, 'Mano de Poker'),
-    (55, 'Mano de Poker');
+    (47, 'Doble o Nada'),
+    (53, 'Doble o Nada'),
+    (62, 'Dilema del Prisionero'),
+    (66, 'Doble o Nada');
+
+INSERT INTO JUEGO.C_BARRERA(numero, penalizacion)
+VALUES
+    (28, 1),
+    (51, 2);

@@ -206,7 +206,7 @@ def obtenerTipoCasilla(numCasilla: int):
         resultado = cursor.fetchone()
 
         if resultado:
-            return "normal", None
+            return "normal", resultado['tipo']
 
         query = "SELECT * FROM JUEGO.C_MOV WHERE numero = %s"
         cursor.execute(query,(numCasilla,))
@@ -227,7 +227,15 @@ def obtenerTipoCasilla(numCasilla: int):
 
         if resultado:
             return "mini", resultado['minijuego']
-        print(f"AVISO: La casilla {numCasilla} no existe en la BD. Forzando tipo 'normal'.")
+        
+        query = "SELECT * FROM JUEGO.C_BARRERA WHERE numero = %s"
+        cursor.execute(query,(numCasilla,))
+        resultado = cursor.fetchone()
+
+        if resultado:
+            return "barrera", resultado['penalizacion']
+
+        print(f"AVISO: La casilla {numCasilla} no existe en la BD. Asumimos tipo 'normal' y ningun extra.")
         return "normal", None
 
     finally:

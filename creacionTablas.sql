@@ -90,6 +90,13 @@ CREATE TABLE JUEGO.C_MOV(
     CONSTRAINT numero_correcto CHECK ( numero >= 0 and numero < 72 )
 );
 
+CREATE TABLE JUEGO.C_BARRERA(
+    numero INTEGER PRIMARY KEY,
+    penalizacion INTEGER NOT NULL,
+    CONSTRAINT numero_correcto CHECK ( numero >= 0 and numero < 72 ),
+    CONSTRAINT penalizacion_pos CHECK ( penalizacion > 0 )
+);
+
 /* ESQUEMA PARTIDAS */
 CREATE TABLE PARTIDAS.PARTIDA_ACTIVA(
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, 

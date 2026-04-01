@@ -158,6 +158,13 @@ class GameManager:
                         "message": f"Jugador {player_id} se ha desconectado"
                     })
 
+                elif session.status == "ENDING":
+                    del session.players[player_id]  # Eliminamos al jugador desconectado
+
+                    if session.players.len() == 0:
+                        del self.active_games[game_id]  # Si no queda nadie eliminamos la partida
+                        return
+
     async def process_action(self, game_id: int, user: str, action: str, payload: dict = None):
         session = self.active_games[game_id]
         
@@ -230,6 +237,15 @@ class GameManager:
                     "casilla": tipo_casilla,
                     "extra": extra
                 })
+
+                if extra == "final":
+                    await session.broadcast({
+                        "type": "fin_partida",
+                        "winner": user
+                    })
+                    session.status = "ENDING"    # Cambiamos el estado de la partida para aceptar desconexiones de nuevo
+                    # Las conexiones deberán ser cerradas por los jugadores para poder limpiar la partida de memoria
+                    return
                 
                 if tipo_casilla == 'mov':
                     nueva_casilla = session.board_state["positions"].get(user) + extra
@@ -269,6 +285,11 @@ class GameManager:
                             "type": "intercambiar_objeto",
                             "message": "Elige un jugador para intercambiar objeto",
                         })
+
+                if tipo_casilla == 'barrera':
+                    # Ya habremos comunicado la penalización con broadcast, ahora tenemos que apuntarnosla
+                    apuntar_penalizacion(game_id, user, extra) # TODO: tenemos que añadir variables y mirar si es el escapista
+                                                               # para reducir la penalización. NO REALIZAR FUNCIÓN, HACERLO INLINE
                 
             case "end_round":
                 session.players_en_fin_ronda += 1
