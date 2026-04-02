@@ -11,6 +11,7 @@ from routers.juego import *
 import random
 
 MAX_JUGADORES_DEBUG = 1
+META = 50
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
 # el cual se encargara de que si no existe crear uno nuevo
@@ -27,6 +28,7 @@ class GameSession:
             self.minijuego_actual = None
             self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...}
             self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
+            self.ha_movido_en_turno = False #Para saber si spuede o no usar objetos
         
         @property
         def is_full(self):
@@ -87,18 +89,21 @@ class GameManager:
 
         session.players[player_id] = websocket
         
+        #Cuando se une el primer jugador
         if "positions" not in session.board_state:
             session.board_state["positions"] = {} # Casilla en la que está cada jugador
             session.board_state["balances"] = {} # Dinero que le queda a cada jugador
             session.board_state["characters"] = {} # Personaje para cada jugador
             session.board_state["turns"] = {} # Ronda en la que nos encontramos
             session.board_state["order"] = {} # Orden de tirada para cada ronda
+            session.board_state["inventory"] = {} # Objetos que han adquirido los usuarios
             
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 1
                     session.board_state["balances"][player_id] = 1
                     session.board_state["turns"][player_id] = 1
                     session.board_state["order"][player_id] = len(session.players)
+                    session.board_state["inventory"][player_id] = [] # Cuando se une un usuario no tiene objetos
 
         # Asignarle la casilla inicial (ej. la casilla 1)
         if reconnect:
@@ -220,10 +225,15 @@ class GameManager:
                 dado2 = session.dados["der"][orden - 1]
 
                 nueva_casilla = session.board_state["positions"].get(user) + dado1 + dado2
+                
+                if nueva_casilla > META:
+                    nueva_casilla = META
+                        
                 session.board_state["positions"][user] = nueva_casilla
 
                 actualizar_casilla(game_id, user, nueva_casilla)
-
+                
+                session.ha_movido_en_turno = True
                 await session.broadcast({
                     "type": "player_moved",
                     "user": user,
@@ -462,5 +472,123 @@ class GameManager:
                         "nuevo_orden": session.board_state["order"]
                     })   
                     
+            case "obtener_objeto":
+                nombre_objeto = payload["objeto"]
+                
+                # Metemos el objeto en el inventario del jugador
+                session.board_state["inventory"][user].append(nombre_objeto)
+                
+                # Avisamos a todos 
+                await session.broadcast({
+                    "type": "inventory_updated",
+                    "user": user,
+                    "objeto_obtenido": nombre_objeto,
+                    "inventario_actual": session.board_state["inventory"][user]
+                })
+                    
+            case "comprar_objeto":
+                nombre_objeto = payload["objeto"]
+                
+                # Comprobar que es su turno
+                orden = session.board_state["order"].get(user)
+                turno_actual = session.players_en_fin_ronda + 1
+                
+                if orden != turno_actual:
+                    await session.players[user].send_json({
+                        "error": "No puedes comprar objetos porque no es tu turno."
+                    })
+                    return
+                
+                # Comprpobar si se ha movido ya o no
+                if session.ha_movido_en_turno:
+                    await session.players[user].send_json({
+                        "error": "Ya has tirado los dados. Los objetos se compran y usan antes de mover."
+                    })
+                    return
 
+                # Obtenemos precio de la base de datos con una query en una función porqeu es ineficiente hacerlo con endpoints
+                # desde el propio back
+                precio = obtener_precio_objeto_db(nombre_objeto)
+                
+                if precio is None:
+                    await session.players[user].send_json({
+                        "error": "El objeto seleccionado no existe en la tienda."
+                    })
+                    return
+
+                #COMPROBAR SALDO Y COMPRA
+                saldo_actual = session.board_state["balances"].get(user, 0)
+
+                if saldo_actual >= precio:
+
+                    session.board_state["balances"][user] -= precio
+                    session.board_state["inventory"][user].append(nombre_objeto)
+                    
+                    await session.broadcast({
+                        "type": "balances_changed",
+                        "balances": session.board_state["balances"]
+                    })
+
+                    await session.broadcast({
+                        "type": "inventory_updated",
+                        "user": user,
+                        "objeto_obtenido": nombre_objeto,
+                        "inventario_actual": session.board_state["inventory"][user]
+                    })
+                    
+                else:
+                    await session.players[user].send_json({
+                        "error": f"No tienes suficientes monedas. Cuesta {precio} y tienes {saldo_actual}."
+                    })
+            
+            case "usar_objeto":
+
+                #IMPORTANTE!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
+                # FALTA POR GESTIONAR QUE SI LO QUE QUIERE USAR ES ALGO QEU TE DA VENTAJA TI LO PUEDES USAR EN EL MISMO
+                # TURNO DE LA COMPRA, PERO SI ES ALGO PARA FASTIDIAR A LOS DEMÁS NO HA PODIDO SER OCMPRADO EN ESTA MISMA RONDA
+
+                nombre_objeto = payload.get("objeto")
+                
+                # Comprobar turno
+                orden = session.board_state["order"].get(user)
+                turno_actual = session.players_en_fin_ronda + 1
+                
+                if orden != turno_actual:
+                    await session.players[user].send_json({
+                        "error": "No puedes usar objetos porque no es tu turno."
+                    })
+                    return
+                
+                # Comprobnar si ya se ha movido
+                if getattr(session, "ha_movido_en_turno", False):
+                    await session.players[user].send_json({
+                        "error": "Ya has tirado los dados. Los objetos se usan antes de mover."
+                    })
+                    return
+
+                # Comprobar si tiene el objeto que quiere usar
+                inventario_jugador = session.board_state["inventory"].get(user, [])
+                
+                if nombre_objeto not in inventario_jugador:
+                    await session.players[user].send_json({
+                        "error": f"No tienes el objeto '{nombre_objeto}' en tu inventario."
+                    })
+                    return
+
+                # Gastar objeto (solo borra una unidad si tiene varios iguales)
+                session.board_state["inventory"][user].remove(nombre_objeto)
+
+                # -EFECTO DEL OBJETO:
+                # Aquí iremos metiendo la lógica según el documento de diseño
+                
+                #if nombre_objeto == "Avanzar/Retroceder casillas":
+                    #...
+                    
+                # Avisar de que se ha usado un objeto y de la acutalización del inventario
+                await session.broadcast({
+                    "type": "objeto_usado",
+                    "user": user,
+                    "objeto": nombre_objeto,
+                    "inventario_actual": session.board_state["inventory"][user],
+                })
 manager = GameManager()

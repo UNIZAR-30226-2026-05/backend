@@ -1,5 +1,6 @@
 
 from random import randint
+from database import get_db_connection
 
 # Pre: pos es un int entre 1 y 4 que indica la posición del turno 
 #      en el que ha quedado el jugador en un turno
@@ -69,3 +70,17 @@ def deshacer_empates(ranking: list):
         resultado.extend(grupo)
     
     return resultado
+
+#Búsqeuda del precio en la bbdd para no llamar a un endpoint desde el backend
+def obtener_precio_objeto_db(nombre: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = "SELECT precio FROM JUEGO.OBJETO WHERE nombre = %s"
+        cursor.execute(query, (nombre,))
+        resultado = cursor.fetchone()
+        
+        return resultado["precio"] if resultado else None
+    finally:
+        cursor.close()
+        conn.close()

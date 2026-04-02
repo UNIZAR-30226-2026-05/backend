@@ -1,9 +1,10 @@
 from schemas import UsuarioPublico, UsuarioRegistro, MinijuegoInfo, PersonajesInfo, ObjetoResponse
 from database import get_db_connection
-
+from funcionesAuxiliaresPartida import obtener_precio_objeto_db
 from fastapi import APIRouter, HTTPException, status
 from typing import List, Dict
 import psycopg2
+
 
 router = APIRouter()
 
@@ -266,3 +267,20 @@ def obtener_descripcion_minijuego_casilla(minijuego: str):
     finally:
         cursor.close()
         conn.close()
+        
+
+
+
+
+# =================================================================================================================================================
+# =================================================================================================================================================
+#                                                      ENDPOINTS OBJETO
+# =================================================================================================================================================
+# =================================================================================================================================================
+# ---------------------------------------------------------
+@router.get("/juego/precio_objeto/{nombre}", response_model=int)
+def get_precio_objeto(nombre: str):
+    precio = obtener_precio_objeto_db(nombre)
+    if precio is None:
+        raise HTTPException(status_code=404, detail="Objeto no encontrado")
+    return precio
