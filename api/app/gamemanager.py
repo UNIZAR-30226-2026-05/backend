@@ -10,6 +10,8 @@ from typing import Literal
 from routers.juego import *
 import random
 
+MAX_JUGADORES_DEBUG = 1
+
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
 # el cual se encargara de que si no existe crear uno nuevo
 
@@ -28,7 +30,7 @@ class GameSession:
         
         @property
         def is_full(self):
-            return len(self.players) == 4
+            return len(self.players) == MAX_JUGADORES_DEBUG
         
         async def broadcast (self, message: dict):
             jugadores_desconectados = []
@@ -192,7 +194,7 @@ class GameManager:
                         "character": character
                     })
 
-                    if num_personajes + 1 == 4:         # Fin de elecciones -> Inicio de partida real
+                    if num_personajes + 1 == MAX_JUGADORES_DEBUG:         # Fin de elecciones -> Inicio de partida real
                         await session.broadcast({
                             "type": "all_players_selected",
                             "message": "Fin de elección de personajes"
@@ -295,7 +297,7 @@ class GameManager:
                 session.players_en_fin_ronda += 1
 
                 # Si los 4 han acabado la ronda lanzar dados y avisar al visionario
-                if session.players_en_fin_ronda == 4:
+                if session.players_en_fin_ronda == MAX_JUGADORES_DEBUG:
                     session.players_en_fin_ronda = 0
                     
                     session.dados["izq"] = []
@@ -412,7 +414,7 @@ class GameManager:
                 session.minijuego_scores[user] = score
                 
                  # Si ya han terminado el minijeugo los 4 jugadores
-                if len(session.minijuego_scores) == 4:
+                if len(session.minijuego_scores) == MAX_JUGADORES_DEBUG:
                     
                     # Ordenar según el minijuego que sea
                     if session.minijuego_actual == "Reflejos":
