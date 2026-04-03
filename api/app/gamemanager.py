@@ -99,7 +99,7 @@ class GameManager:
             session.board_state["inventory"] = {} # Objetos que han adquirido los usuarios
             
         if player_id not in session.board_state["positions"]:
-                    session.board_state["positions"][player_id] = 1
+                    session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
                     session.board_state["balances"][player_id] = 1
                     session.board_state["turns"][player_id] = 1
                     session.board_state["order"][player_id] = len(session.players)
@@ -250,6 +250,7 @@ class GameManager:
                     "extra": extra
                 })
 
+                # PUEDE IR ARRIBA Y EVITARNOS UN MENSAJE???
                 if extra == "final":
                     await session.broadcast({
                         "type": "fin_partida",
