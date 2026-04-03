@@ -329,6 +329,7 @@ class GameManager:
                                                                # para reducir la penalización. NO REALIZAR FUNCIÓN, HACERLO INLINE
                 
             case "end_round":
+                session.ha_movido_en_turno = False
                 session.players_en_fin_ronda += 1
 
                 # Si los 4 han acabado la ronda lanzar dados y avisar al visionario
@@ -348,6 +349,12 @@ class GameManager:
                     for p_id in session.board_state["turns"]:
                         session.board_state["turns"][p_id] += 1
                         session.board_state["balances"][p_id] += 3
+
+                    # Aviso de las monedas
+                    await session.broadcast({
+                        "type": "balances_changed",
+                        "balances": session.board_state["balances"]
+                    })
 
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
