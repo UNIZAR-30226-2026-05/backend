@@ -84,3 +84,44 @@ def obtener_precio_objeto_db(nombre: str):
     finally:
         cursor.close()
         conn.close()
+
+# Verificar que una partida existe en la BD
+def existe_partida(game_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = "SELECT id FROM PARTIDAS.PARTIDA_ACTIVA WHERE id = %s"
+        cursor.execute(query, (game_id,))
+        resultado = cursor.fetchone()
+        
+        return True if resultado else False
+    finally:
+        cursor.close()
+        conn.close()
+
+# Verificar que un jugador está asociado a una partida en la BD
+def jugador_en_partida(player_id: str, game_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = "SELECT nombre_jugador FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s AND id_partida = %s"
+        cursor.execute(query, (player_id, game_id))
+        resultado = cursor.fetchone()
+        
+        return True if resultado else False
+    
+    finally:
+        cursor.close()
+        conn.close()
+
+def eliminar_jugador_partida(player_id: str, game_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = "DELETE FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s AND id_partida = %s"
+        cursor.execute(query, (player_id, game_id))
+        conn.commit()
+    
+    finally:
+        cursor.close()
+        conn.close()

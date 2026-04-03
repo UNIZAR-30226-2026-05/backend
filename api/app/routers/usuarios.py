@@ -11,7 +11,7 @@ import jwt
 from jwt import InvalidTokenError
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/usuarios/login")    # Cambiado para probar en /docs endopoints, estaba solo como login
 
 # =================================================================================================================================================
 # =================================================================================================================================================

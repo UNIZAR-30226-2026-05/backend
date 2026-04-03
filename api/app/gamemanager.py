@@ -11,7 +11,7 @@ from routers.juego import *
 import random
 
 MAX_JUGADORES_DEBUG = 1
-META = 50
+META = 71
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
 # el cual se encargara de que si no existe crear uno nuevo
@@ -57,11 +57,21 @@ class GameManager:
     async def connect(self, websocket: WebSocket, game_id: int, player_id: str):
         await websocket.accept()
 
-        # Crear el nuevo game en caso de que no exita
+        # Crear el nuevo game en caso de que no exista y se encuentre en la BD, si no existe no se permitirá la conexión
+        if not existe_partida(game_id):
+            await websocket.send_json({"error": "La partida no existe"})
+            await websocket.close()
+            return False
 
-        if game_id not in self.active_games:
+        elif game_id not in self.active_games:  # Se ha conectado el primer jugador por lo que creamos la sesión de juego
             self.active_games[game_id] = GameSession(game_id)
         
+        # Verificamos que el usuario este asociado a la partida en la BD
+        if not jugador_en_partida(player_id, game_id):
+            await websocket.send_json({"error": "No estás asociado a esta partida"})
+            await websocket.close()
+            return False
+
         session = self.active_games[game_id]
 
         reconnect = player_id in session.players
@@ -80,9 +90,10 @@ class GameManager:
                 except:
                     pass
 
-        # Verficar que la partida no esta llena
+        # Verficar que la partida no esta llena ni empezada
 
         if not reconnect and (session.is_full or session.status != "WAITING"):
+            eliminar_jugador_partida(player_id, game_id) # Eliminamos al jugador de la partida en la BD para que no haya problemas
             await websocket.send_json({"error": "La partida esta llena"})
             await websocket.close()
             return False
@@ -105,7 +116,6 @@ class GameManager:
                     session.board_state["order"][player_id] = len(session.players)
                     session.board_state["inventory"][player_id] = [] # Cuando se une un usuario no tiene objetos
 
-        # Asignarle la casilla inicial (ej. la casilla 1)
         if reconnect:
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
             await websocket.send_json({
@@ -141,7 +151,8 @@ class GameManager:
         if game_id in self.active_games:
             session = self.active_games[game_id]
             
-            if player_id in session.players:
+            # Comprobamos que el jugador existe y que el websocket que se ha desconectado es el último que se ha registrado
+            if player_id in session.players and session.players.get(player_id) == websocket:
                 
                 if session.status == "WAITING":
 
@@ -153,6 +164,8 @@ class GameManager:
                     del session.board_state["order"][player_id]
                     del session.board_state["positions"][player_id]
                     del session.board_state["balances"][player_id]
+                    
+                    eliminar_jugador_partida(player_id, game_id) # Eliminamos al jugador de la partida en la BD
 
                     # reajustar turnos
                     for p_id, order in session.board_state["order"].items():    # Para obtener clave y valor
@@ -165,11 +178,22 @@ class GameManager:
                         "message": f"Jugador {player_id} se ha desconectado"
                     })
 
+                elif session.status == "PLAYING":
+                    # Marcamos como desconectado para que no reciba mensajes
+                    session.players[player_id] = None
+
+                    await session.broadcast({
+                        "type": "not_playing",
+                        "player": player_id
+                    })
+
                 elif session.status == "ENDING":
                     del session.players[player_id]  # Eliminamos al jugador desconectado
+                    eliminar_jugador_partida(player_id, game_id) # Eliminamos al jugador de la partida en la BD
 
-                    if session.players.len() == 0:
+                    if len(session.players) == 0:
                         del self.active_games[game_id]  # Si no queda nadie eliminamos la partida
+                        # No hace falta eliminar la partida porque si no tiene jugadores asociados se eliminará gracias al trigger
                         return
 
     async def process_action(self, game_id: int, user: str, action: str, payload: dict = None):
@@ -323,7 +347,7 @@ class GameManager:
 
                     for p_id in session.board_state["turns"]:
                         session.board_state["turns"][p_id] += 1
-                        session.board_state["balances"][p_id] += 1
+                        session.board_state["balances"][p_id] += 3
 
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
@@ -350,15 +374,14 @@ class GameManager:
 
                     match minijuego:
                         case "Tren":
-                            # REVISAR ALEATORIO
-                            session.minijuego_detalles = {"objetivo": random.randint(1, 20)}                 
+                            session.minijuego_detalles = {"objetivo": random.randint(15, 30)}                 
                         case "Reflejos":
                             session.minijuego_detalles = {"objetivo": random.randint(2000, 5000)}    # Valores en ms
                         case "Mayor o Menor":
                             # Generamos 4 cartas aleatorias para cada jugador. El valor de la carta será la puntuación que tengan que enviar los jugadores al acabar el minijuego
                             session.minijuego_detalles = {"cartas": [v + random.randint(0, 3) * 13 for v in random.sample(range(13), 4)]}
                         case "Cronometro ciego":
-                            session.minijuego_detalles = {"objetivo": random.randint(5, 15)}    # Segundos que el jugador tiene que contar
+                            session.minijuego_detalles = {"objetivo": random.randint(7, 10)}    # Segundos que el jugador tiene que contar
                         case "Cortar pan":
                             session.minijuego_detalles = {"objetivo": 50}    # Mitad del pan
 

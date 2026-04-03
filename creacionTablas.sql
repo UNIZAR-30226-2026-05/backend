@@ -65,6 +65,11 @@ CREATE TABLE JUEGO.OBJETO(
     CONSTRAINT precio_pos CHECK ( precio > 0 )
 );
 
+CREATE TABLE JUEGO.OBJETO_RULETA(
+    nombre VARCHAR(50) PRIMARY KEY,
+    CONSTRAINT fk_objeto FOREIGN KEY(nombre) REFERENCES JUEGO.OBJETO(nombre)
+);
+
 CREATE TABLE JUEGO.CASILLA(
     numero INTEGER PRIMARY KEY,
     tipo VARCHAR(50) NOT NULL, -- 'normal', 'objeto', 'minijuego', 'movimiento'

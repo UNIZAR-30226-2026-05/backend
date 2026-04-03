@@ -95,7 +95,7 @@ def obtener_tipos_casillas():
 @router.get("/casillas/objeto", response_model=ObjetoResponse) 
 def obtener_objeto_aleatorio():
     """
-    Cuando se gira la ruleta en una casilla, se obtiene un objeto aleatorio
+    Cuando se gira la ruleta en una casilla, se obtiene un objeto aleatorio de los posibles candidatos que hay en la tabla OBJETO_RULETA
     """
     
     conn = get_db_connection()
@@ -103,10 +103,12 @@ def obtener_objeto_aleatorio():
     
     try:
         query = """
-            SELECT nombre, precio, descripcion
-            FROM JUEGO.OBJETO
+            SELECT o.nombre, o.precio, o.descripcion
+            FROM JUEGO.OBJETO_RULETA r
+            JOIN JUEGO.OBJETO o 
+                ON r.nombre = o.nombre
             ORDER BY RANDOM()
-            LIMIT 1; 
+            LIMIT 1;
         """
 
         cursor.execute(query)

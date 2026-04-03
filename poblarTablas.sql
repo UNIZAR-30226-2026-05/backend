@@ -18,14 +18,17 @@ VALUES
 
 INSERT INTO JUEGO.OBJETO(nombre, precio, descripcion)
 VALUES
-    ('Avanzar Casillas',1, 'El jugador que elijas avanza un numero de casillas aleatorias (0-3)'),
-    ('Retroceder Casillas',1, 'El jugador que elijas retrocede un numero de casillas aleatorias (0-3)'),
-    ('Barrera', 2, 'Coloca una barrera en el tablero'),
-    ('Mejorar Dados',1, 'Mejora los dados en uno del jugador que elijas para esta tirada'),
-    ('Empeorar Dados',1, 'Empeora los dados en uno del jugador que elijas para esta tirada'),
-    ('Ruleta',1, 'Tira una ruleta para conseguir un objeto aleatorio'),
-    ('Quitar Turno',1, 'Haz que un jugador no tire en este turno'),
-    ('Salvavidas',1, 'Te salvará de tu próxima penalización que obtengas');
+    ('Avanzar Casillas',1, 'Avanza un numero de casillas aleatorias antes de tirar los dados'),
+    ('Mejorar Dados',3, 'Mejora tu segundo dado para esta tirada (no permitido si posees el dado de oro)'),
+    ('Barrera', 10, 'Prohibe que un jugador tire en su siguiente turno (no lo exhibe de jugar el minijuego de eleccion de orden)'),
+    ('Salvavidas movimiento',5, 'Anula el efecto de penalizacion de una casilla de movimiento'),
+    ('Salvavidas bloqueo',10, 'Anula el efecto de una casilla de bloqueo');
+
+InSERT INTO JUEGO.OBJETO_RULETA(nombre)
+VALUES
+    ('Avanzar Casillas'),
+    ('Mejorar Dados'),
+    ('Barrera');
 
 INSERT INTO JUEGO.MINIJUEGO(nombre)
 VALUES

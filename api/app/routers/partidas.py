@@ -82,7 +82,6 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
     cursor = conn.cursor()
     
     try:
-        # VIGILAR QUE UNA PARTIDA NO SE LLENE
 
         # Verificar que el usuario existe
         if(not verificar_usuario(cursor, usuario_actual)):
@@ -102,11 +101,6 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
 
         cursor.execute(query_crear_jugando, (usuario_actual, datos.id_partida,))
 
-        query_conteo = "SELECT COUNT(*) as total FROM PARTIDAS.JUGANDO WHERE id_partida = %s"
-        cursor.execute(query_conteo, (datos.id_partida,))
-        resultado_conteo = cursor.fetchone()
-        cantidad_actual = resultado_conteo['total']
-
         conn.commit()
 
         return datos.id_partida
@@ -122,8 +116,6 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
     finally:
         cursor.close()
         conn.close()
-
-# AÑADIR BORRADO DE PARTIDA Y ABANDONAR PARTIDA??
 
 
 # ---------------------------------------------------------
