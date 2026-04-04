@@ -18,9 +18,9 @@ VALUES
 
 INSERT INTO JUEGO.OBJETO(nombre, precio, descripcion)
 VALUES
-    ('Avanzar Casillas',1, 'Avanza un numero de casillas aleatorias antes de tirar los dados'),
-    ('Mejorar Dados',3, 'Mejora tu segundo dado para esta tirada (no permitido si posees el dado de oro)'),
-    ('Barrera', 10, 'Prohibe que un jugador tire en su siguiente turno (no lo exhibe de jugar el minijuego de eleccion de orden)'),
+    ('Avanzar Casillas',1, 'Avanza una casilla tras tirar los dados'),
+    ('Mejorar Dados',3, 'Mejora tu segundo dado en un nivel para esta tirada (no permitido si posees el dado de oro)'),
+    ('Barrera', 10, 'Añade un turno de penalizacion al jugador que elijas (no lo exhibe de jugar el minijuego de eleccion de orden)'),
     ('Salvavidas movimiento',5, 'Anula el efecto de penalizacion de una casilla de movimiento'),
     ('Salvavidas bloqueo',10, 'Anula el efecto de una casilla de bloqueo');
 

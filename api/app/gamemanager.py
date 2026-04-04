@@ -3,6 +3,7 @@
 # a los jugadores que estan esperando que ha iniciado la partida
 
 from fastapi import WebSocket
+from requests import session
 from routers.partidas import *
 from routers.juego import *
 from funcionesAuxiliaresPartida import *
@@ -29,7 +30,11 @@ class GameSession:
             self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...}
             self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
             self.ha_movido_en_turno = False #Para saber si spuede o no usar objetos
-        
+            self.ha_caido_en_barrera = False #Para saber si puede comprar salvaidas barrera o no
+            self.ha_caido_en_casilla_negativa = (False, 0) # Para saber si puede comprar salvavidas de casilla negativa o no, y casillas restadas
+            self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
+            self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
+
         @property
         def is_full(self):
             return len(self.players) == MAX_JUGADORES_DEBUG
@@ -99,7 +104,8 @@ class GameManager:
             return False
 
         session.players[player_id] = websocket
-        
+        session.penalizacion_pendiente[player_id] = 0 # Inicializamos la penalización pendiente a 0 para el jugador que se conecta
+
         #Cuando se une el primer jugador
         if "positions" not in session.board_state:
             session.board_state["positions"] = {} # Casilla en la que está cada jugador
@@ -108,6 +114,7 @@ class GameManager:
             session.board_state["turns"] = {} # Ronda en la que nos encontramos
             session.board_state["order"] = {} # Orden de tirada para cada ronda
             session.board_state["inventory"] = {} # Objetos que han adquirido los usuarios
+            session.board_state["penalty_turns"] = {} # Turnos de penalización que le quedan a cada jugador por caer en casillas de barrera
             
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
@@ -115,6 +122,7 @@ class GameManager:
                     session.board_state["turns"][player_id] = 1
                     session.board_state["order"][player_id] = len(session.players)
                     session.board_state["inventory"][player_id] = [] # Cuando se une un usuario no tiene objetos
+                    session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
 
         if reconnect:
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
@@ -164,6 +172,11 @@ class GameManager:
                     del session.board_state["order"][player_id]
                     del session.board_state["positions"][player_id]
                     del session.board_state["balances"][player_id]
+                    del session.board_state["turns"][player_id]
+                    del session.board_state["order"][player_id]
+                    del session.board_state["inventory"][player_id]
+                    del session.board_state["penalty_turns"][player_id]
+                    del session.penalizacion_pendiente[player_id]
                     
                     eliminar_jugador_partida(player_id, game_id) # Eliminamos al jugador de la partida en la BD
 
@@ -236,6 +249,13 @@ class GameManager:
                 if orden is None:
                     return
 
+                # Comprobamos que no tenga penalización activa
+                if session.board_state["penalty_turns"].get(user, 0) > 0:
+                    await session.players[user].send_json({
+                        "error": f"Tienes {session.board_state['penalty_turns'][user]} turnos de penalización restantes. No puedes tirar los dados."
+                    })
+                    return
+
                 # A quién le toca tirar ahora
                 turno_actual = session.players_en_fin_ronda + 1
 
@@ -248,7 +268,7 @@ class GameManager:
                 dado1 = session.dados["izq"][orden - 1]
                 dado2 = session.dados["der"][orden - 1]
 
-                nueva_casilla = session.board_state["positions"].get(user) + dado1 + dado2
+                nueva_casilla = session.board_state["positions"].get(user) + dado1 + dado2 + session.avance_extra
                 
                 if nueva_casilla > META:
                     nueva_casilla = META
@@ -284,7 +304,11 @@ class GameManager:
                     # Las conexiones deberán ser cerradas por los jugadores para poder limpiar la partida de memoria
                     return
                 
-                if tipo_casilla == 'mov':
+                if tipo_casilla == 'mov': 
+                    # Escapista solo se reduce en una casilla si es negativa
+                    if session.board_state["characters"].get(user) == "Escapista" and extra < 0: 
+                        extra += 1
+                    
                     nueva_casilla = session.board_state["positions"].get(user) + extra
                     session.board_state["positions"][user] = nueva_casilla
                     actualizar_casilla(game_id, user, nueva_casilla)
@@ -293,6 +317,10 @@ class GameManager:
                         "user": user,
                         "nueva_casilla": nueva_casilla
                     })
+
+                    if extra < 0:
+                        # Marcamos que ha caído en casilla negativa y las casillas restadas para después gestionar la compra de salvavidas
+                        session.ha_caido_en_casilla_negativa = (True, abs(extra))
 
                 # VIGILAR CASO EN EL QUE HAYA DOS JUGADORES EN LA MISMA CASILLA (DILEMA PRISIONERO)
 
@@ -324,12 +352,31 @@ class GameManager:
                         })
 
                 if tipo_casilla == 'barrera':
-                    # Ya habremos comunicado la penalización con broadcast, ahora tenemos que apuntarnosla
-                    apuntar_penalizacion(game_id, user, extra) # TODO: tenemos que añadir variables y mirar si es el escapista
-                                                               # para reducir la penalización. NO REALIZAR FUNCIÓN, HACERLO INLINE
+                    if session.board_state["characters"].get(user) == "Escapista":   # Si el jugador es el escapista, solo pierde 1 turno
+                        extra -= 1
+
+                    session.board_state["penalty_turns"][user] = extra   # El jugador pierde turnos
+                    session.ha_caido_en_barrera = True   # Marcamos que ha caído en barrera para que en el proceso de fin de ronda se le reste un turno y se le quite la penalización cuando llegue a 0
                 
             case "end_round":
                 session.ha_movido_en_turno = False
+                session.ha_caido_en_barrera = False
+                session.ha_caido_en_casilla_negativa = (False, 0)
+                session.avance_extra = 0
+                # Añadimos los turnos de penalización pendientes y reducimos en uno la penalización que ya tenía si esq tenía
+                if session.board_state["penalty_turns"][user] > 0:
+                    session.board_state["penalty_turns"][user] += session.penalizacion_pendiente.get(user, 0) - 1
+                    session.broadcast({
+                        "type": "penalizacion_actualizada",
+                        "user": user,
+                        "penalizacion": session.board_state["penalty_turns"][user]
+                    })
+
+                else: # No tiene penalización activa, le añadimos la pendiente. No enviamos mensaje porque ya lo sabrá
+                    session.board_state["penalty_turns"][user] += session.penalizacion_pendiente.get(user, 0)
+                
+                session.penalizacion_pendiente[user] = 0
+
                 session.players_en_fin_ronda += 1
 
                 # Si los 4 han acabado la ronda lanzar dados y avisar al visionario
@@ -472,7 +519,7 @@ class GameManager:
                         
                     else:
                         # Por defecto nos quedamos con el valor absoluto de la diferencia entre la puntuación del jugador y la referencia del minijuego (tiempo objetivo, valor objetivo de la carta, etc). El ganador será el que esté más cerca del
-                        objetivo = payload["objetivo"]
+                        objetivo = session.minijuego_detalles.get("objetivo")
                         ranking = ordenar_por_cercania(session.minijuego_scores.items(), objetivo)
 
                     deshacer_empates(ranking)
@@ -496,6 +543,7 @@ class GameManager:
                     #Limpieza ante ssiguiente ronda
                     session.minijuego_scores = {}
                     session.minijuego_actual = None
+                    session.minijuego_detalles = {}
 
                     await session.broadcast({
                         "type": "minijuego_resultados",
@@ -503,7 +551,7 @@ class GameManager:
                         "nuevo_orden": session.board_state["order"]
                     })   
                     
-            case "obtener_objeto":
+            case "anyadir_objeto":
                 nombre_objeto = payload["objeto"]
                 
                 # Metemos el objeto en el inventario del jugador
@@ -573,11 +621,6 @@ class GameManager:
                     })
             
             case "usar_objeto":
-
-                #IMPORTANTE!!!!!!!!!!!!!!!!!!!!!!!!!!!!11
-                # FALTA POR GESTIONAR QUE SI LO QUE QUIERE USAR ES ALGO QEU TE DA VENTAJA TI LO PUEDES USAR EN EL MISMO
-                # TURNO DE LA COMPRA, PERO SI ES ALGO PARA FASTIDIAR A LOS DEMÁS NO HA PODIDO SER OCMPRADO EN ESTA MISMA RONDA
-
                 nombre_objeto = payload.get("objeto")
                 
                 # Comprobar turno
@@ -610,11 +653,72 @@ class GameManager:
                 session.board_state["inventory"][user].remove(nombre_objeto)
 
                 # -EFECTO DEL OBJETO:
-                # Aquí iremos metiendo la lógica según el documento de diseño
                 
-                #if nombre_objeto == "Avanzar/Retroceder casillas":
-                    #...
+                if nombre_objeto == "Avanzar Casillas":
+                    session.avance_extra += 1
                     
+                elif nombre_objeto == "Mejorar Dados":
+                    orden_tirada = session.board_state["order"].get(user) - 1
+                    if orden_tirada != 0: # Solo si no tienes el dado de oro
+                        # Tiramos de nuevo los dados con el orden de jugador disminuido en uno para mejorar su segundo dado de nivel
+                        session.dados["izq"][orden_tirada], session.dados["der"][orden_tirada], _ = tirarDados(orden_tirada)
+
+                    else: 
+                        await session.players[user].send_json({
+                        "error": "No puedes usar este objeto porque tienes el dado de oro."
+                        })
+                        return
+                    
+                elif nombre_objeto == "Barrera":
+                    # El jugador elige a quien penalizar
+                    objetivo = payload.get("penalizar_a")
+                    
+                    if objetivo is None:
+                        await session.players[user].send_json({
+                            "error": "Debes especificar un objetivo para usar este objeto."
+                        })
+                        return
+                    
+                    if objetivo == user:
+                        await session.players[user].send_json({
+                            "error": "No puedes usar este objeto sobre ti mismo."
+                        })
+                        return
+
+                    if objetivo not in session.players[user].keys():
+                        await session.players[user].send_json({
+                            "error": "El objetivo especificado no es válido."
+                        })
+                        return
+
+                    # Si es el escapista no le penalizamos
+                    if session.board_state["characters"].get(objetivo) == "Escapista":
+                        await session.players[user].send_json({
+                            "error": "No puedes usar este objeto sobre el Escapista."
+                        })
+                        return
+                    
+                    else:   # Tenemos que comprobar si el objetivo ha tirado o no ha tirado, en el segundo caso nos guardamos la penalización
+                        orden_tirada = session.board_state["order"].get(user)
+                        orden_objetivo = session.board_state["order"].get(objetivo)
+                        if orden_tirada > orden_objetivo:   # El objetivo ya ha tirado (orden menor), aplicamos penalización
+                            session.board_state["penalty_turns"][objetivo] += 1
+
+                            await session.broadcast({
+                                "type": "penalizacion_anyadida",
+                                "user": objetivo,
+                                "message": f"Pierdes un turno"
+                            })
+
+                        else:   # El objetivo no ha tirado, añadimos uno a los turnos de penalización pendientes
+                            session.penalizacion_pendiente[objetivo] += 1
+                            
+                            await session.broadcast({
+                                "type": "penalizacion_anyadida",
+                                "user": objetivo,
+                                "message": f"Perderás un turno en cuanto termines de tirar los dados"
+                            })
+
                 # Avisar de que se ha usado un objeto y de la acutalización del inventario
                 await session.broadcast({
                     "type": "objeto_usado",
@@ -622,4 +726,94 @@ class GameManager:
                     "objeto": nombre_objeto,
                     "inventario_actual": session.board_state["inventory"][user],
                 })
+
+            case "usar_salvavidas":
+                nombre_objeto = payload["objeto"]
+                
+                # Comprobar que es su turno
+                orden = session.board_state["order"].get(user)
+                turno_actual = session.players_en_fin_ronda + 1
+                
+                if orden != turno_actual:
+                    await session.players[user].send_json({
+                        "error": "No puedes comprar objetos porque no es tu turno."
+                    })
+                    return
+                
+                if not session.ha_movido_en_turno:
+                    await session.players[user].send_json({
+                        "error": "No puedes usar un salvavidas antes de tirar los dados."
+                    })
+                    return
+
+                # Obtenemos precio de la base de datos con una query en una función porqeu es ineficiente hacerlo con endpoints
+                # desde el propio back
+                precio = obtener_precio_objeto_db(nombre_objeto)
+                
+                if precio is None:
+                    await session.players[user].send_json({
+                        "error": "El objeto seleccionado no existe en la tienda."
+                    })
+                    return
+
+                #COMPROBAR SALDO Y COMPRA
+                saldo_actual = session.board_state["balances"].get(user, 0)
+
+                if saldo_actual >= precio:
+                    # Reducimos la penalización correspondiente de la casilla negativa
+                    if nombre_objeto == "Salvavidas movimiento":
+                        if session.ha_caido_en_casilla_negativa[0]:   # Solo se puede usar si ha caído en casilla negativa
+                            session.board_state["balances"][user] -= precio
+
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
+
+                            extra = session.ha_caido_en_casilla_negativa[1]
+                            nueva_casilla = session.board_state["positions"].get(user) + extra
+                            session.board_state["positions"][user] = nueva_casilla
+                            actualizar_casilla(game_id, user, nueva_casilla)
+                            await session.broadcast({
+                                "type": "player_moved",
+                                "user": user,
+                                "nueva_casilla": nueva_casilla,
+                                "message": "Salvavidas usado para revertir movimiento negativo"
+                            })
+                            session.ha_caido_en_casilla_negativa = (False, 0)
+                        
+                        else:
+                            await session.players[user].send_json({
+                                "error": "No has caído en una casilla de movimiento negativo, no puedes usar este salvavidas."
+                            })
+
+                    elif nombre_objeto == "Salvavidas bloqueo":
+                        # SOLO ESTÁ HECHO PARA ELIMINAR LA PENALIZACIÓN DE CASILLAS Y PONERLA SIEMPRE A 0. AÑADIR OBJETOSS???
+                        if session.ha_caido_en_barrera:   # Solo se puede usar si ha caído en barrera
+                            session.board_state["balances"][user] -= precio
+
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
+
+                            session.board_state["penalty_turns"][user] = 0
+                            session.ha_caido_en_barrera = False
+                            await session.broadcast({
+                                "type": "penalizacion_eliminada",
+                                "user": user,
+                                "message": "Salvavidas usado para eliminar penalización de barrera"
+                            })
+                            session.ha_caido_en_barrera = False
+                        
+                        else:
+                            await session.players[user].send_json({
+                                "error": "No has caído en una casilla de barrera, no puedes usar este salvavidas."
+                            })
+                    
+                else:
+                    await session.players[user].send_json({
+                        "error": f"No tienes suficientes monedas. Cuesta {precio} y tienes {saldo_actual}."
+                    })
+
 manager = GameManager()
