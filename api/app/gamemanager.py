@@ -3,7 +3,8 @@
 # a los jugadores que estan esperando que ha iniciado la partida
 
 from fastapi import WebSocket
-from requests import session
+# Si no comento esto no va
+# from requests import session
 from routers.partidas import *
 from routers.juego import *
 from funcionesAuxiliaresPartida import *
