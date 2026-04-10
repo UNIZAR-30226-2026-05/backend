@@ -1,9 +1,14 @@
+import os
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 import jwt
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 # Configuración JWT
-SECRET_KEY = "eduardo_es_el_miembro_mas_guapo_de_todo_el_equipo"
+SECRET_KEY = os.getenv("SECRET_KEY", "paquito")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
