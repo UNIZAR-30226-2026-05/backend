@@ -4,9 +4,9 @@ services:
     container_name: bbdd
     restart: always #Cuando lo pongamos en el servidor queremos que se inicie siempre
     environment:
-      POSTGRES_USER: paquito
-      POSTGRES_PASSWORD: paquito
-      POSTGRES_DB: db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     # postgres siempre usa puerto interno 5432
     ports:
       - "5432:5432"
@@ -49,7 +49,9 @@ services:
       - ./api/app:/app
     environment:
       # Host (PONEMOS EL NOMBRE DEL SERVICIO POSTGRES!! -> @localhost falla porque el contenedor de la api no tiene bbdd)
-      DATABASE_URL: postgresql://paquito:paquito@db-postgres:5432/db
+      DATABASE_URL: ${DATABASE_URL}
+      # Clave secreta para hash de contraseñas
+      SECRET_KEY: ${SECRET_KEY}
     depends_on:
       - db-postgres
 
