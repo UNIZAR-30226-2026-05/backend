@@ -3,6 +3,7 @@
 # a los jugadores que estan esperando que ha iniciado la partida
 
 from fastapi import WebSocket
+from requests import session
 # Si no comento esto no va
 # from requests import session
 from routers.partidas import *
@@ -27,9 +28,13 @@ class GameSession:
             self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
             self.players_en_fin_ronda = 0       # Jugadores que han acabado la ronda
             
+            # Minijuegos
             self.minijuego_actual = None
-            self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...}
+            self.minijuego_tipo = None  # "orden" o "casilla" 
+            self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
             self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
+            self.minijuego_participantes = [] # Para gestionar los ids que participan en el minijuego actual
+
             self.ha_movido_en_turno = False #Para saber si spuede o no usar objetos
             self.ha_caido_en_barrera = False #Para saber si puede comprar salvaidas barrera o no
             self.ha_caido_en_casilla_negativa = (False, 0) # Para saber si puede comprar salvavidas de casilla negativa o no, y casillas restadas
@@ -334,6 +339,39 @@ class GameManager:
                         "descripcion": obtener_descripcion_minijuego_casilla(extra)
                     })
 
+                    # Distintas acciones para cada minijuego
+                    if extra == 'Dilema del Prisionero':
+                        # Verificar si hay otro jugador en la misma casilla
+                        jugadores_en_casilla = [p_id for p_id, pos in session.board_state["positions"].items() if pos == nueva_casilla]
+                        if len(jugadores_en_casilla) == 2:  # Solo si hay exactamente dos jugadores (1vs1)
+                            for p_id in jugadores_en_casilla:
+                                await session.players[p_id].send_json({
+                                    "type": "ini_minijuego",
+                                    "minijuego": extra,
+                                    "descripcion": obtener_descripcion_minijuego_casilla(extra)
+                                })
+                        session.minijuego_actual = extra
+                        session.minijuego_tipo = "casilla"
+                        session.minijuego_participantes = jugadores_en_casilla
+                    
+                    elif extra == "Doble o Nada":
+                        session.minijuego_actual = extra
+                        session.minijuego_tipo = "casilla"
+                        session.minijuego_participantes = [user]    # Solo el jugador que ha caído en la casilla participa
+                        await session.players[user].send_json({
+                            "type": "ini_minijuego",
+                            "minijuego": extra,
+                            "descripcion": obtener_descripcion_minijuego_casilla(extra)
+                        })
+                    elif extra == "Mano de Poker":
+                        session.minijuego_actual = extra
+                        session.minijuego_tipo = "casilla"
+                        # Los participantes son los jugadores con saldo mayor al mínimo (3 monedas)
+                        session.minijuego_participantes = [p_id for p_id, saldo in session.board_state["balances"].items() if saldo >= 3]
+
+                        # SORTEAR LAS CARTAS Y GUARDARLAS EN session.minijuego_detalles
+
+                        # AVISAR A LOS PARTICIPANTES CON LAS CARTAS QUE LES TOCAN A CADA UNO Y EN EL CENTRO DE LA MESA
 
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
@@ -426,6 +464,8 @@ class GameManager:
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
+                    session.minijuego_participantes = list(session.player.keys()) # Participan todos los jugadores
+                    session.minijuego_tipo = "orden"
 
                     match minijuego:
                         case "Tren":
@@ -451,7 +491,6 @@ class GameManager:
                         "detalles": session.minijuego_detalles
                     })
                         
-
             case "banquero":
                 if session.board_state["characters"].get(user) == "Banquero":
                     # Obtenemos el orden del jugador para esta ronda
@@ -500,57 +539,23 @@ class GameManager:
             
             case "score_minijuego":
                 score = payload["score"]
-                session.minijuego_scores[user] = score
-                
-                 # Si ya han terminado el minijeugo los 4 jugadores
-                if len(session.minijuego_scores) == MAX_JUGADORES_DEBUG:
-                    
-                    # Ordenar según el minijuego que sea
-                    if session.minijuego_actual == "Reflejos":
-                        # En el de reflejos gana el menor tiempo (de menor a mayor)
-                        
-                            #items() convierte el diccionario {"Edu1": 300, "Edu2": 200...} en una lista de tuplas:
-                            #[("Edu1", 300), ("Edu2", 200)...]. Con key indicamos la parte de la tupla en la que se tiene
-                            # que basar para ordenar.
-                        ranking = sorted(session.minijuego_scores.items(), key=obtener_puntuacion)
-                        
-                    elif session.minijuego_actual == "Mayor o Menor":
-                        # Gana la carta más alta. Ordenamos de mayor a menor con reverse=True
-                        ranking = sorted(session.minijuego_scores.items(), key=obtener_puntuacion, reverse=True)
-                        
+
+                if session.minijuego_actual is "Doble o Nada":
+                    # Comprobamos que el score (apuesta) este dentro del saldo del jugador y sea positivo
+                    if score <= 0 or score > session.board_state["balances"].get(user, 0):
+                        await session.players[user].send_json({
+                            "error": "La puntuación para 'Doble o Nada' debe ser un número positivo y menor o igual a tu saldo"
+                        })
+                        return
                     else:
-                        # Por defecto nos quedamos con el valor absoluto de la diferencia entre la puntuación del jugador y la referencia del minijuego (tiempo objetivo, valor objetivo de la carta, etc). El ganador será el que esté más cerca del
-                        objetivo = session.minijuego_detalles.get("objetivo")
-                        ranking = ordenar_por_cercania(session.minijuego_scores.items(), objetivo)
+                        session.minijuego_scores[user] = score
 
-                    deshacer_empates(ranking)
+                else:
+                    session.minijuego_scores[user] = score
 
-                    # Vamos rellenando un diccionario con la posición de cada usuairo y la puntuación que ha conseguido
-                    # para después hacer un broadcast con todo al frontend
-                    resultados_front = {}
-                    
-                    for indice, (player_id, puntuacion) in enumerate(ranking):
-                        posicion = indice + 1
-                        
-                        # IMPORTANTE ACTUALIZAR EL ORDEN DEL ESTADO DE LA PARTIDA
-                        session.board_state["order"][player_id] = posicion
-                        
-                        # Rellenamos resulado para este jugador
-                        resultados_front[player_id] = {
-                            "posicion": posicion,
-                            "score": puntuacion
-                        }
-                    
-                    #Limpieza ante ssiguiente ronda
-                    session.minijuego_scores = {}
-                    session.minijuego_actual = None
-                    session.minijuego_detalles = {}
-
-                    await session.broadcast({
-                        "type": "minijuego_resultados",
-                        "resultados": resultados_front,
-                        "nuevo_orden": session.board_state["order"]
-                    })   
+                # Comprobamos si todos los que debían jugar han terminado
+                if all(p in session.minijuego_scores for p in session.minijuego_participantes):
+                    await self.resolver_minijuego(session) 
                     
             case "anyadir_objeto":
                 nombre_objeto = payload["objeto"]
