@@ -3,7 +3,7 @@
 # a los jugadores que estan esperando que ha iniciado la partida
 
 from fastapi import WebSocket
-from requests import session
+#from requests import session
 # Si no comento esto no va
 # from requests import session
 from routers.partidas import *
@@ -540,7 +540,7 @@ class GameManager:
             case "score_minijuego":
                 score = payload["score"]
 
-                if session.minijuego_actual is "Doble o Nada":
+                if session.minijuego_actual == "Doble o Nada":
                     # Comprobamos que el score (apuesta) este dentro del saldo del jugador y sea positivo
                     if score <= 0 or score > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({
