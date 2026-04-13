@@ -12,6 +12,7 @@ from funcionesAuxiliaresPartida import *
 from typing import Literal
 from routers.juego import *
 import random
+from logicaMinijuegos import *
 
 MAX_JUGADORES_DEBUG = 1
 META = 71
@@ -464,7 +465,7 @@ class GameManager:
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
-                    session.minijuego_participantes = list(session.player.keys()) # Participan todos los jugadores
+                    session.minijuego_participantes = list(session.players.keys()) # Participan todos los jugadores
                     session.minijuego_tipo = "orden"
 
                     match minijuego:
@@ -555,7 +556,7 @@ class GameManager:
 
                 # Comprobamos si todos los que debían jugar han terminado
                 if all(p in session.minijuego_scores for p in session.minijuego_participantes):
-                    await self.resolver_minijuego(session) 
+                    await resolver_minijuego(session) 
                     
             case "anyadir_objeto":
                 nombre_objeto = payload["objeto"]
