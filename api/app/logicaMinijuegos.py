@@ -33,29 +33,29 @@ async def finalizar_minijuego_orden(session):
         objetivo = session.minijuego_detalles.get("objetivo")
         ranking = ordenar_por_cercania(session.minijuego_scores.items(), objetivo)
 
-        deshacer_empates(ranking)
-        # Vamos rellenando un diccionario con la posición de cada usuairo y la puntuación que ha conseguido
-        # para después hacer un broadcast con todo al frontend
-        resultados_front = {}
+    deshacer_empates(ranking)
+    # Vamos rellenando un diccionario con la posición de cada usuairo y la puntuación que ha conseguido
+    # para después hacer un broadcast con todo al frontend
+    resultados_front = {}
                     
-        for indice, (player_id, puntuacion) in enumerate(ranking):
-            posicion = indice + 1
+    for indice, (player_id, puntuacion) in enumerate(ranking):
+        posicion = indice + 1
                         
-            # IMPORTANTE ACTUALIZAR EL ORDEN DEL ESTADO DE LA PARTIDA
-            session.board_state["order"][player_id] = posicion
+        # IMPORTANTE ACTUALIZAR EL ORDEN DEL ESTADO DE LA PARTIDA
+        session.board_state["order"][player_id] = posicion
                         
-            # Rellenamos resulado para este jugador
-            resultados_front[player_id] = {
-                "posicion": posicion,
-                "score": puntuacion
-            }
+    # Rellenamos resulado para este jugador
+        resultados_front[player_id] = {
+            "posicion": posicion,
+            "score": puntuacion
+        }
                 
 
-        await session.broadcast({
-            "type": "minijuego_resultados",
-            "resultados": resultados_front,
-            "nuevo_orden": session.board_state["order"]
-        })  
+    await session.broadcast({
+        "type": "minijuego_resultados",
+        "resultados": resultados_front,
+        "nuevo_orden": session.board_state["order"]
+    })  
 
 async def finalizar_minijuego_casilla(session):
    if session.minijuego_actual == 'Dilema del Prisionero':
