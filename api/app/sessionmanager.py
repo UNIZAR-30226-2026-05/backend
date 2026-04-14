@@ -80,6 +80,39 @@ class SessionManager:
                     }
                 })
 
+            case "send_request":
+                target_player = payload.get("player_id")
+                list_payers = obtener_todos_usuarios()
+
+                if target_player not in list_payers:
+                    await self.send_personal_message(user, {
+                        "type": "user_not_exists",
+                        username: target_player
+                    })
+                    continue
+
+                check = enviarSolicitud(user, target_player)
+                if check:
+                    await self.send_personal_message(user, {
+                        "type": "request_sended",
+                        username: target_player
+                    })
+                else:
+                    await self.send_personal_message(user, {
+                        "type": "failed_request",
+                        username: target_player,
+                        cause: "Ya son amigos"
+                    })
+            case "accept_request":
+                target_player = payload.get("player_id")
+                aceptarSolicitud(target_player,user)
+
+            case "reject_request":
+                target_player = payload.get("player_id")
+                rechazarSolicitud(target_player,user)
+
+
+
 
 # Instancia global para usar en tus rutas
 lobby_manager = SessionManager()
