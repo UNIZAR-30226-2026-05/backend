@@ -1,4 +1,4 @@
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 from routers.usuarios import *
 
 class SessionManager:
@@ -7,7 +7,6 @@ class SessionManager:
         self.state_users: dict[str, str] = {}
 
     async def connect(self, websocket: WebSocket, player_id: str):
-        
         self.active_users[player_id] = websocket
         self.state_users[player_id] = "Lobby"
         # Avisamos a sus amigos de que está online
@@ -16,30 +15,33 @@ class SessionManager:
     async def disconnect(self, player_id: str):
         if player_id in self.active_users:
             del self.active_users[player_id]
+            if player_id in self.state_users:
+                del self.state_users[player_id]
             # Al desconectarse, avisamos a sus amigos
             await self.broadcast_status_to_friends(player_id, "offline")
 
     async def send_personal_message(self, target_player_id: str, message: dict):
-        """Envía un mensaje directo a un usuario (ej. una invitación)"""
-        if target_player_id in self.active_users and self.state_users[target_player_id] == "online":
+        """Envía un mensaje directo a un usuario si está conectado"""
+        if target_player_id in self.active_users:
             websocket = self.active_users[target_player_id]
-            await websocket.send_json(message)
+            try:
+                await websocket.send_json(message)
+            except WebSocketDisconnect:
+                await self.disconnect(target_player_id)
 
     def is_user_online(self, player_id: str) -> bool:
         return player_id in self.active_users
     
     async def start_game(self, player_id: str):
-        self.state_users[player_id] = "in_game"
+        if player_id in self.state_users:
+            self.state_users[player_id] = "in_game"
 
     async def broadcast_status_to_friends(self, user: str, status: str):
-
-        amigos = obtener_todos_amigos_user(user)
+        amigos = obtener_todos_amigos_user(user) 
         
         for amigo in amigos:
             friend_id = amigo['nombre'] 
-            
             if self.is_user_online(friend_id):
-                # Le enviamos el aviso
                 await self.send_personal_message(friend_id, {
                     "type": "friend_status_update",
                     "friend_id": user,
@@ -47,33 +49,32 @@ class SessionManager:
                 })
                 
     async def process_action(self, user: str, action: str, payload: dict = None):
+        if payload is None:
+            payload = {}
+
         match action:
             case "invite_friend":
                 target_friend = payload.get("friend_id")
                 game_id_to_join = payload.get("game_id") 
                 
-                if target_friend and lobby_manager.is_user_online(target_friend):
-                    await lobby_manager.send_personal_message(target_friend, {
+                if target_friend and self.is_user_online(target_friend):
+                    await self.send_personal_message(target_friend, {
                         "action": "receive_invite",
                         "from_user": user,
                         "game_id": game_id_to_join
                     })
                 else:
-                    await self.send_json({"error": "El usuario no está conectado"})
+                    await self.send_personal_message(user, {"error": "El usuario no está conectado"})
 
             case "get_online_friends":
-                 # Sacamos los amigos de la BBDD
                 amigos_db = obtener_todos_amigos_user(user)
                 
-                # Filtramos los que están conectados ahora mismo
-                amigos_conectados = []
-                for amigo in amigos_db:
-                    friend_id = amigo['nombre']
-                    if lobby_manager.is_user_online(friend_id):
-                        amigos_conectados.append(friend_id)
+                amigos_conectados = [
+                    amigo['nombre'] for amigo in amigos_db 
+                    if self.is_user_online(amigo['nombre'])
+                ]
                 
-                # Se lo enviamos al jugador
-                await self.send_json({
+                await self.send_personal_message(user, {
                     "action": "online_friends_list",
                     "payload": {
                         "friends": amigos_conectados
@@ -87,32 +88,29 @@ class SessionManager:
                 if target_player not in list_payers:
                     await self.send_personal_message(user, {
                         "type": "user_not_exists",
-                        username: target_player
+                        "username": target_player 
                     })
-                    continue
+                    return 
 
                 check = enviarSolicitud(user, target_player)
                 if check:
                     await self.send_personal_message(user, {
                         "type": "request_sended",
-                        username: target_player
+                        "username": target_player 
                     })
                 else:
                     await self.send_personal_message(user, {
                         "type": "failed_request",
-                        username: target_player,
-                        cause: "Ya son amigos"
+                        "username": target_player, 
+                        "cause": "Ya son amigos"   
                     })
+
             case "accept_request":
                 target_player = payload.get("player_id")
-                aceptarSolicitud(target_player,user)
+                aceptarSolicitud(target_player, user)
 
             case "reject_request":
                 target_player = payload.get("player_id")
-                rechazarSolicitud(target_player,user)
+                rechazarSolicitud(target_player, user)
 
-
-
-
-# Instancia global para usar en tus rutas
 lobby_manager = SessionManager()
