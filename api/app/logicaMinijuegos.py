@@ -1,6 +1,10 @@
 import random
 from funcionesAuxiliaresPartida import *
 
+numeros = ['as', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'jota', 'reina', 'rey']
+palos = ['picas', 'corazones', 'treboles', 'diamantes']
+baraja = [(numero, palo) for palo in palos for numero in numeros]
+
 async def resolver_minijuego(session):
     if session.minijuego_tipo == "orden":
         await finalizar_minijuego_orden(session)
@@ -8,11 +12,12 @@ async def resolver_minijuego(session):
         await finalizar_minijuego_casilla(session)
 
     # Reiniciamos las variables (cuidado con Poker, porque es por rondas)
-    session.minijuego_actual = None
-    session.minijuego_scores = {}
-    session.minijuego_participantes = []
-    session.minijuego_tipo = None
-    session.minijuego_detalles = {}
+    if session.minijuego_actual != "Mano de Poker": # La mano de poker se reinicia en la propia función
+        session.minijuego_actual = None
+        session.minijuego_scores = {}
+        session.minijuego_participantes = []
+        session.minijuego_tipo = None
+        session.minijuego_detalles = {}
 
 async def finalizar_minijuego_orden(session):
     # Ordenar según el minijuego que sea
@@ -104,3 +109,71 @@ async def finalizar_minijuego_dobleNada(session):
         "type": "balances_changed",
         "balances": session.board_state["balances"]
     })
+
+async def finalizar_minijuego_poker(session):
+
+    # Limpiamos variables una vez ya hemos finalizado varias rondas
+    session.minijuego_actual = None
+    session.minijuego_scores = {}
+    session.minijuego_participantes = []
+    session.minijuego_tipo = None
+    session.minijuego_detalles = {}
+
+# Dado un indice devuelve la tupla de la carta correspondiente en la baraja. Ej: 0 -> ('as', 'picas'), 51 -> ('rey', 'diamantes')
+def indexar_carta(carta):
+    if carta < 0 or carta >= len(baraja):
+        return None
+    
+    return baraja[carta]
+
+def puntuar_poker(mano):
+    # Asignamos un valor a cada tipo de mano
+    if mano is None:
+        return 0
+    elif mano == "carta alta":
+        return 1
+    elif mano == "pareja":
+        return 2
+    elif mano == "doble pareja":
+        return 3
+    elif mano == "trio":
+        return 4
+    elif mano == "escalera":
+        return 5
+    elif mano == "color":
+        return 6
+    elif mano == "full house":
+        return 7
+    elif mano == "poker":
+        return 8
+    elif mano == "escalera de color":
+        return 9
+    elif mano == "escalera real":
+        return 10
+    else:
+        return 0
+
+# La idea es llamar a este vector con las dos cartas de cada jugador más las cartas de la mesa, todas ya indexadas en el vector
+def dar_valor_mano(mano):
+    jugada = "escalera real" # Valor más alto posible, para luego ir bajando
+    if mano is None:
+        return 0
+    
+    # Buscamos si es escalera real (10, J, Q, K, A del mismo palo)
+    if all(carta in mano for carta in [('10', 'picas'), ('jota', 'picas'), ('reina', 'picas'), ('rey', 'picas'), ('as', 'picas')]) or \
+       all(carta in mano for carta in [('10', 'corazones'), ('jota', 'corazones'), ('reina', 'corazones'), ('rey', 'corazones'), ('as', 'corazones')]) or \
+       all(carta in mano for carta in [('10', 'treboles'), ('jota', 'treboles'), ('reina', 'treboles'), ('rey', 'treboles'), ('as', 'treboles')]) or \
+       all(carta in mano for carta in [('10', 'diamantes'), ('jota', 'diamantes'), ('reina', 'diamantes'), ('rey', 'diamantes'), ('as', 'diamantes')]):
+        return puntuar_poker(jugada)
+    
+    # Ya no puede ser escalera real, buscamos si es escalera de color (5 cartas seguidas del mismo palo)
+    jugada = "escalera de color"
+    for palo in palos:
+        if all(carta in mano for carta in [('6', palo), ('7', palo), ('8', palo), ('9', palo), ('10', palo)]): # COMPLETAR
+            return puntuar_poker(jugada)
+
+    # Ya no puede ser escalera de color, buscamos si es poker (4 cartas iguales)
+    jugada = "poker"
+    for numero in numeros:
+        if sum(1 for carta in mano if carta[0] == numero) >= 4:
+            return puntuar_poker(jugada)
