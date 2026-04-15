@@ -368,3 +368,26 @@ def rechazarSolicitud(rechazado: str, rechazador: str):
         cursor.close()
         conn.close()
 
+def obtener_invitaciones_usuario(player_id: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        query = """
+            SELECT solicitador FROM USUARIOS.SOLICITUD 
+            WHERE solicitado = %s
+        """
+        cursor.execute(check_query, (player_id,))
+        
+        lista_pendiente = cursor.fetchall()
+        
+        return lista_pendiente
+
+    except Exception as e:
+        print(f"Error en la base de datos al añadir amigo: {e}")
+        conn.rollback() # Por si la base de datos se queda bloqueada
+        return False
+        
+    finally:
+        cursor.close()
+        conn.close()

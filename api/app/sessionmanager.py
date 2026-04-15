@@ -11,6 +11,12 @@ class SessionManager:
         self.state_users[player_id] = "Lobby"
         # Avisamos a sus amigos de que está online
         await self.broadcast_status_to_friends(player_id, "online")
+        invitaciones_pendientes = obtener_invitaciones_usuario(player_id)
+
+        await self.send_personal_message(player_id, {
+            "type": "friend_requests_list",
+            "lista": invitaciones_pendientes
+        })
         
     async def disconnect(self, player_id: str):
         if player_id in self.active_users:
