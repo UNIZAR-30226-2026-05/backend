@@ -385,11 +385,34 @@ class GameManager:
                             "descripcion": objeto["descripcion"]
                         })
 
-                    else:  # Tenemos que intercambiar objetos entre jugadores. Avisamos al usuario para que elija con quién intercambiar
-                        await session.players[user].send_json({
-                            "type": "intercambiar_objeto",
-                            "message": "Elige un jugador para intercambiar objeto",
-                        })
+                    else:  # Intercambiamos posición con otro jugador aleatorio
+                        jugadores_disponibles = [p_id for p_id in session.players.keys() if p_id != user and session.players[p_id] is not None]
+                        if jugadores_disponibles:
+                            objetivo = random.choice(jugadores_disponibles)
+
+                            # Intercambiamos posiciones
+                            pos_user = session.board_state["positions"][user]
+                            pos_objetivo = session.board_state["positions"][objetivo]
+
+                            session.board_state["positions"][user] = pos_objetivo
+                            session.board_state["positions"][objetivo] = pos_user
+
+                            actualizar_casilla(game_id, user, pos_objetivo)
+                            actualizar_casilla(game_id, objetivo, pos_user)
+
+                            await session.broadcast({
+                                "type": "player_moved",
+                                "user": user,
+                                "nueva_casilla": pos_objetivo,
+                                "message": "Posiciones intercambiadas con otro jugador aleatoriamente"
+                            })
+
+                            await session.broadcast({
+                                "type": "player_moved",
+                                "user": objetivo,
+                                "nueva_casilla": pos_user,
+                                "message": "Posiciones intercambiadas con otro jugador aleatoriamente"
+                            })
 
                 if tipo_casilla == 'barrera':
                     if session.board_state["characters"].get(user) == "Escapista":   # Si el jugador es el escapista, solo pierde 1 turno
