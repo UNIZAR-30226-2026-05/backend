@@ -376,7 +376,7 @@ class GameManager:
 
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
-                    if extra == 1:   # Tenemos que sortear un objeto aleatorio para el jugador
+                    if extra == '1':   # Tenemos que sortear un objeto aleatorio para el jugador
                         objeto = obtener_objeto_aleatorio()
                         await session.broadcast({
                             "type": "obtener_objeto",
