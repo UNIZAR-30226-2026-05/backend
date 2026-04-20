@@ -97,12 +97,13 @@ async def finalizar_minijuego_dilemaPrisionero(session):
 async def finalizar_minijuego_dobleNada(session):
     apuesta = session.minijuego_scores[session.minijuego_participantes[0]] # Solo hay un jugador en este minijuego
 
-    victoria = random.random() # Número aleatorio entre 0 y 1. Si es menor a 0.5 pierde, si es mayor a 0.5 gana
+    if apuesta > 0:
+        victoria = random.random() # Número aleatorio entre 0 y 1. Si es menor a 0.5 pierde, si es mayor a 0.5 gana
 
-    if victoria < 0.5:
-        session.board_state["balances"][session.minijuego_participantes[0]] -= apuesta
-    else:
-        session.board_state["balances"][session.minijuego_participantes[0]] += apuesta
+        if victoria < 0.5:
+            session.board_state["balances"][session.minijuego_participantes[0]] -= apuesta
+        else:
+            session.board_state["balances"][session.minijuego_participantes[0]] += apuesta
 
     # Enviamos un solo mensaje con el cambio de monedas
     await session.broadcast({
