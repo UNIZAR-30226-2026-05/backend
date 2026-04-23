@@ -328,8 +328,7 @@ def enviarSolicitud(solicitante: str, solicitado: str):
             WHERE (usuario1 = %s AND usuario2 = %s) 
                OR (usuario1 = %s AND usuario2 = %s)
         """
-        cursor.execute(check_query, (user1, user2, user2, user1))
-        
+        cursor.execute(check_query, (solicitante, solicitado, solicitado, solicitante))        
         ya_son_amigos = cursor.fetchone()
         
         if ya_son_amigos:
@@ -406,15 +405,12 @@ def obtener_invitaciones_usuario(player_id: str):
     cursor = conn.cursor()
 
     try:
-        query = """
-            SELECT solicitador FROM USUARIOS.SOLICITUD 
-            WHERE solicitado = %s
-        """
-        cursor.execute(check_query, (player_id,))
+        query = "SELECT solicitante FROM USUARIOS.SOLICITUD WHERE solicitado = %s"
+        cursor.execute(query, (player_id,)) # Aquí decía check_query
         
-        lista_pendiente = cursor.fetchall()
-        
-        return lista_pendiente
+        resultado_raw = cursor.fetchall()
+        # Recuerda limpiar las tuplas para que el front reciba [ "nombre1", "nombre2" ]
+        return [fila[0] for fila in resultado_raw]
 
     except Exception as e:
         print(f"Error en la base de datos al añadir amigo: {e}")
