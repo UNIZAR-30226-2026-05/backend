@@ -72,7 +72,7 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
 # ---------------------------------------------------------
 # LEER TODOS USERS (GET)
 # ---------------------------------------------------------
-@router.get("/", response_model=List[UsuarioPublico])
+@router.get("/", response_model=List[str]) # Cambié el response_model para que coincida con strings
 def obtener_todos_usuarios():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -81,17 +81,18 @@ def obtener_todos_usuarios():
         query = "SELECT nombre FROM USUARIOS.USUARIO"
         cursor.execute(query)
         
-        resultado = cursor.fetchall() # Trae TODOS
+        resultado_raw = cursor.fetchall() 
         
-        if not resultado:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        if not resultado_raw:
+            raise HTTPException(status_code=404, detail="No hay usuarios")
             
-        return resultado
+        usuarios_limpios = [fila[0] for fila in resultado_raw]
+        
+        return usuarios_limpios
         
     finally:
         cursor.close()
         conn.close()
-
 # ---------------------------------------------------------
 # LEER UNO (GET)
 # ---------------------------------------------------------
