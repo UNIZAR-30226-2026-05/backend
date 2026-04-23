@@ -168,6 +168,38 @@ def obtener_todos_amigos_user(nombre_user: str):
 # Básicamente al llamar a un endpoint como el de unirnos a partida, llama previamente a esta función que comprueba 
 # nuestro token en la db y si funciona devuelve el nombre de usuario
 # ---------------------------------------------------------
+
+from fastapi import HTTPException, status
+
+@router.get("/filtrar_usuarios")
+def filtrar_usuarios(cadena: str):
+
+    if len(cadena) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="La búsqueda debe tener al menos 4 caracteres"
+        )
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        filtro = f"%{cadena}%"
+        
+        query = """
+            SELECT nombre 
+            FROM USUARIOS.USUARIO 
+            WHERE nombre LIKE %s
+        """
+
+        cursor.execute(query, (filtro,))
+        resultado = cursor.fetchall()
+        
+        return resultado
+        
+    finally:
+        cursor.close()
+        conn.close()
+
 def obtener_usuario_actual(token = Depends(oauth2_scheme)):
     """Valida el token y devuelve el nombre del usuario logueado"""
     credentials_exception = HTTPException(

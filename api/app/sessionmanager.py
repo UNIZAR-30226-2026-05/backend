@@ -35,7 +35,7 @@ class SessionManager:
             except WebSocketDisconnect:
                 await self.disconnect(target_player_id)
 
-    def is_user_online(self, player_id: str) -> bool:
+    def is_user_online(self, player_id: str):
         return player_id in self.active_users
     
     async def start_game(self, player_id: str):
@@ -65,12 +65,15 @@ class SessionManager:
                 
                 if target_friend and self.is_user_online(target_friend):
                     await self.send_personal_message(target_friend, {
-                        "action": "receive_invite",
+                        "type": "receive_invite",
                         "from_user": user,
                         "game_id": game_id_to_join
                     })
                 else:
                     await self.send_personal_message(user, {"error": "El usuario no está conectado"})
+            case "accept_invite":
+                target_friend = payload.get("friend_id")
+                game_id_to_join = payload.get("game_id") 
 
             case "get_online_friends":
                 amigos_db = obtener_todos_amigos_user(user)
@@ -81,7 +84,7 @@ class SessionManager:
                 ]
                 
                 await self.send_personal_message(user, {
-                    "action": "online_friends_list",
+                    "type": "online_friends_list",
                     "payload": {
                         "friends": amigos_conectados
                     }
