@@ -96,7 +96,7 @@ class SessionManager:
 
                 if target_player not in list_payers:
                     await self.send_personal_message(user, {
-                        "error": "user_not_exists",
+                        "type": "user_not_exists",
                         "username": target_player 
                     })
                     return 
