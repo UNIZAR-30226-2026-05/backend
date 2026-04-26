@@ -121,6 +121,12 @@ def eliminar_jugador_partida(player_id: str, game_id: int):
         query = "DELETE FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s AND id_partida = %s"
         cursor.execute(query, (player_id, game_id))
         conn.commit()
+        return True
+    
+    except Exception as e:
+        print(f"Error de base de datos al eliminar jugador: {e}")
+        conn.rollback() # Deshacer cambios si hay fallo
+        return False    # Retorno de fallo
     
     finally:
         cursor.close()

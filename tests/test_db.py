@@ -142,8 +142,8 @@ def test_eliminar_jugador_partida_exito(mock_get_db):
     # Assert: Comprobamos que es exitoso
     assert resultado is True
     
-    # Verificamos que se ejecutaron dos consultas (DELETE y UPDATE)
-    assert mock_cursor.execute.call_count == 2
+    # Verificamos que se ejecuta la consulta de DELETE
+    assert mock_cursor.execute.call_count == 1
     
     # Verificamos que se consolidaron los cambios en la BD
     mock_conn.commit.assert_called_once()
