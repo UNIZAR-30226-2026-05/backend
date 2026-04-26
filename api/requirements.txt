@@ -7,3 +7,6 @@ bcrypt==3.2.2
 PyJWT # Para generar y descifrar los tokens JWT.
 python-multipart #FastAPI lo necesita para leer los formularios de login estándar.
 python-dotenv
+pytest-asyncio
+pytest
+httpx
