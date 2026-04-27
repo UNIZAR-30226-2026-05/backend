@@ -1,0 +1,36 @@
+name: Pruebas del Backend
+
+on:
+  push:
+    branches: [ "main"]
+  pull_request:
+    branches: [ "main"]
+
+jobs:
+  testeo-automatico:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Descarga el código del repositorio
+    - name: Descargar el código
+      uses: actions/checkout@v4
+
+    # Instala Python
+    - name: Configurar Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    # Instalación de todas las librerías
+    - name: Instalar dependencias
+      run: |
+        python -m pip install --upgrade pip
+        
+        pip install -r api/requirements.txt
+        
+        pip install fastapi httpx "passlib[bcrypt]" "bcrypt==3.2.2" PyJWT psycopg2-binary python-dotenv pytest pytest-asyncio
+
+    # Ejecutar los tests
+    - name: Ejecutar Pytest
+      run: |
+        pytest tests/test_logica.py tests/test_db.py tests/test_api.py
