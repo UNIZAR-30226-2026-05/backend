@@ -64,3 +64,7 @@ class ObjetoResponse(BaseModel):
 class PlayerAction(BaseModel):
     action: str         # move, roll_dice etc
     payload: dict[str, Any] = {}    # Datos extra, posicion, minijuego, resultado de algo etc
+
+class CambioContrasena(BaseModel):
+    contrasena_actual: str
+    contrasena_nueva: str = Field(..., min_length=8)

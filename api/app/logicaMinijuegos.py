@@ -2,6 +2,11 @@ import random
 import asyncio
 from funcionesAuxiliaresPartida import *
 
+# Definición vagones del tren
+vagones_normales = [13, 10, 12, 9]
+vagones_especiales = [6, 16, 8, 14]
+
+# Definición de la baraja estándar de póker
 numeros = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'jota', 'reina', 'rey', 'as']
 palos = ['picas', 'corazones', 'treboles', 'diamantes']
 
@@ -527,3 +532,24 @@ def sortearManoPoker(numPlayers: int):
 
 def carta_a_dict(carta):
     return {"valor": carta[0], "palo": carta[1]}
+
+# Función para sortear los vagones en el minijuego del tren
+def sortear_vagones():
+    total_pasajeros = 0
+    vagones = []
+    # Primero sorteamos los vagones normales
+    for _ in range(3):  
+        # Generamos un índice aleatorio válido
+        indice = random.randrange(len(vagones_normales))
+
+        # Obtenemos el valor en esa posición
+        total_pasajeros += vagones_normales[indice]
+
+        vagones.append(indice) # Añadimos al vector de índices el número del vagón sorteado
+
+    # Para el último vagón, sorteamos entre los especiales
+    indice = random.randrange(len(vagones_especiales))
+    total_pasajeros += vagones_especiales[indice]
+    vagones.append(indice)
+
+    return vagones, total_pasajeros

@@ -9,4 +9,4 @@ python-multipart #FastAPI lo necesita para leer los formularios de login estánd
 python-dotenv
 pytest-asyncio
 pytest
-httpx
+httpx   # httpxlogs era lo que estaba puesto antes y no funcionaba 
