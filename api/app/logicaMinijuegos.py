@@ -170,11 +170,72 @@ def dar_valor_mano(mano):
     # Ya no puede ser escalera real, buscamos si es escalera de color (5 cartas seguidas del mismo palo)
     jugada = "escalera de color"
     for palo in palos:
-        if all(carta in mano for carta in [('6', palo), ('7', palo), ('8', palo), ('9', palo), ('10', palo)]): # COMPLETAR
-            return puntuar_poker(jugada)
+        for numero in numeros:
+            if all(carta in mano for carta in [('6', palo), ('7', palo), ('8', palo), ('9', palo), ('10', palo)]): # COMPLETAR
+                return puntuar_poker(jugada)
 
     # Ya no puede ser escalera de color, buscamos si es poker (4 cartas iguales)
     jugada = "poker"
     for numero in numeros:
         if sum(1 for carta in mano if carta[0] == numero) >= 4:
             return puntuar_poker(jugada)
+        
+    jugada = "full house"
+    tiene_trio = False
+    tiene_pareja = False
+    for numero in numeros:
+        cantidad = sum(1 for carta in mano if carta[0] == numero)
+        if cantidad >= 3:
+            tiene_trio = True
+        elif cantidad >= 2:
+            tiene_pareja = True
+    if tiene_trio and tiene_pareja:
+        return puntuar_poker(jugada)
+    
+    jugada = "color"
+    for palo in palos:
+        if sum(1 for carta in mano if carta[1] == palo) >= 5: 
+            return puntuar_poker(jugada)
+            
+            
+    
+    jugada = "escalera"
+    # Para la escalera, es más fácil transformar las cartas a sus índices numéricos.
+    # Asumimos que 'numeros' está ordenado, ej: ['2', '3', '4', ..., 'rey', 'as']
+    valores_en_mano = set([numeros.index(carta[0]) for carta in mano])
+    
+    # El As (último índice, por ejemplo 12) también puede actuar como un "1" (índice -1)
+    # para formar la escalera menor: As, 2, 3, 4, 5.
+    if (len(numeros) - 1) in valores_en_mano: 
+        valores_en_mano.add(-1)
+        
+    consecutivas = 0
+    # Revisamos desde -1 hasta la longitud total de 'numeros'
+    for i in range(-1, len(numeros)):
+        if i in valores_en_mano:
+            consecutivas += 1
+            if consecutivas >= 5:
+                return puntuar_poker(jugada)
+        else:
+            consecutivas = 0 # Rompemos la racha si falta un número
+
+    jugada = "trio"
+    for numero in numeros:
+        if sum(1 for carta in mano if carta[0] == numero) >= 3:
+            return puntuar_poker(jugada)
+            
+    # Para Doble Pareja y Pareja, contamos cuántas parejas distintas hay
+    cantidad_parejas = 0
+    for numero in numeros:
+        if sum(1 for carta in mano if carta[0] == numero) >= 2:
+            cantidad_parejas += 1
+            
+    if cantidad_parejas >= 2:
+        return puntuar_poker("doble pareja")
+    
+    if cantidad_parejas == 1:
+        return puntuar_poker("pareja")
+
+    # Si no ha entrado en ninguno de los if anteriores, es Carta Alta por descarte
+    return puntuar_poker("carta alta")
+    
