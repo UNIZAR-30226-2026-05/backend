@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "main"]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   testeo-automatico:
     runs-on: ubuntu-latest
@@ -33,4 +36,4 @@ jobs:
     # Ejecutar los tests
     - name: Ejecutar Pytest
       run: |
-        pytest tests/test_logica.py tests/test_db.py tests/test_api.py
+        pytest -W ignore::DeprecationWarning tests/test_logica.py tests/test_db.py tests/test_api.py
