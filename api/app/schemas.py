@@ -15,7 +15,7 @@ automáticamente, y coge lo que se ha puesto en los esquemas pydantic asi q rent
 
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from typing import Any
@@ -23,11 +23,11 @@ from typing import Any
 # --- MODELOS DE ENTRADA (Lo que el frontend nos envía) ---
 
 class UsuarioRegistro(BaseModel):
-    nombre: str = Field(..., min_length=3, max_length=50, example="paquito")
-    password: str = Field(..., min_length=8, max_length=72, example="secreto123")
+    nombre: str = Field(..., min_length=3, max_length=50, examples=["paquito"])
+    password: str = Field(..., min_length=8, max_length=72, examples=["secreto123"])
 
 class JoinPartida(BaseModel):
-    id_partida: int = Field(..., gt=0, example=1)
+    id_partida: int = Field(..., gt=0, examples=[1])
 
 # --- MODELOS DE SALIDA (Lo que devolvemos al frontend) ---
 
@@ -35,8 +35,7 @@ class UsuarioPublico(BaseModel):
     nombre: str
     # NO incluimos el password aquí!
     
-    class Config:
-        from_attributes = True # Esto ayuda a que Pydantic entienda diccionarios
+    model_config = ConfigDict(from_attributes=True)
 
 class MinijuegoInfo(BaseModel):
     nombre: str
@@ -50,9 +49,9 @@ class PartidaActiva(BaseModel):
     ult_resultado: Optional[List[int]] = None
 
 class PersonajesInfo(BaseModel):
-    nombre: str = Field(..., example="Banquero")
-    habilidad: str = Field(..., example="Robar dinero a tus contrincantes")
-    descripcion: str = Field(..., example="Es el personaje que puede controlar...")
+    nombre: str = Field(..., examples=["Banquero"])
+    habilidad: str = Field(..., examples=["Robar dinero a tus contrincantes"])
+    descripcion: str = Field(..., examples=["Es el personaje que puede controlar..."])
 
 class ObjetoResponse(BaseModel):
     nombre: str

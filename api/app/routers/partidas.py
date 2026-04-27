@@ -28,7 +28,11 @@ def obtener_partidas_activas():
             raise HTTPException(status_code=404, detail="No hay partidas activas")
             
         return [row['id'] for row in resultado]  # Devolver solo los IDs
-        
+    
+    except HTTPException:
+        # Dejamos que los errores HTTP que nosotros hemos lanzado (como el 404) fluyan normalmente
+        raise
+    
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -64,7 +68,11 @@ def crear_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
     except psycopg2.IntegrityError as e:
         conn.rollback() #  deshacer si hay error
         raise HTTPException(status_code=400, detail=str(e))
-        
+    
+    except HTTPException:
+        # Dejamos que los errores HTTP que nosotros hemos lanzado (como el 404) fluyan normalmente
+        raise
+    
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -94,6 +102,14 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
         
         if not resultado_partida:
             raise HTTPException(status_code=404, detail="Partida no encontrada")
+        
+        query_conteo = "SELECT COUNT(*) as num_jugadores FROM PARTIDAS.JUGANDO WHERE id_partida = %s"
+        cursor.execute(query_conteo, (datos.id_partida,))
+        resultado_conteo = cursor.fetchone()
+        
+        # Si ya hay 4 jugadores o más, cortamos la ejecución
+        if resultado_conteo and resultado_conteo["num_jugadores"] >= 4:
+            raise HTTPException(status_code=400, detail="La partida está llena")
 
         # Asignar el jugador a la partida creada
         query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
@@ -108,7 +124,11 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
     except psycopg2.IntegrityError as e:
         conn.rollback() #  deshacer si hay error
         raise HTTPException(status_code=400, detail=str(e))
-        
+    
+    except HTTPException:
+        # Dejamos que los errores HTTP que nosotros hemos lanzado (como el 404) fluyan normalmente
+        raise
+    
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -144,7 +164,11 @@ def actualizar_casilla(game_id: int, player: str, nueva_casilla: int):
         # Guardamos los cambios
         conn.commit()
         return True
-
+    
+    except HTTPException:
+        # Dejamos que los errores HTTP que nosotros hemos lanzado (como el 404) fluyan normalmente
+        raise
+    
     except Exception as e:
         conn.rollback() # Deshacer si hay error
         print(f"Error de BBDD al actualizar casilla: {e}") # Para que tú lo veas en la consola
@@ -184,7 +208,11 @@ def actualizar_dinero(game_id: int, player: str, diferencia_saldo: int):
         # Guardamos los cambios
         conn.commit()
         return True
-
+    
+    except HTTPException:
+        # Dejamos que los errores HTTP que nosotros hemos lanzado (como el 404) fluyan normalmente
+        raise
+    
     except Exception as e:
         conn.rollback() # Deshacer si hay error
         print(f"Error de BBDD al actualizar casilla: {e}") # Para que tú lo veas en la consola
@@ -214,7 +242,11 @@ def guardar_personaje(game_id: int, player: str, character: str):
         # Guardamos los cambios
         conn.commit()
         return True
-
+    
+    except HTTPException:
+        # Dejamos que los errores HTTP que nosotros hemos lanzado (como el 404) fluyan normalmente
+        raise
+    
     except Exception as e:
         conn.rollback() # Deshacer si hay error
         print(f"Error de BBDD al actualizar casilla: {e}") # Para que tú lo veas en la consola
