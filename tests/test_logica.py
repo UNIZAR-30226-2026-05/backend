@@ -79,7 +79,7 @@ def test_tirarDados_validacion_limites(posicion, max_dado2):
     else:
         assert d2 == 0
         
-    # Validación de la integridad matemática del resultado
+    # Validación de la integridad del resultado
     assert suma == d1 + d2
 
 def test_obtener_puntuacion_tupla():

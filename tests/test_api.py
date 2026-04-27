@@ -2,13 +2,13 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
-# Importamos la instancia de la aplicación FastAPI 
+# instancia de la aplicación FastAPI 
 from main import app
 
-# Importamos la dependencia de seguridad desde su ruta correcta (routers)
+# dependencia de seguridad desde su ruta correcta (routers)
 from routers.usuarios import obtener_usuario_actual
 
-# Instanciamos el cliente de pruebas de FastAPI
+# cliente de pruebas de FastAPI
 client = TestClient(app)
 
 # ==============================================================================
@@ -27,7 +27,6 @@ def override_obtener_usuario_actual():
 # TESTS DE LA API DE USUARIOS (/usuarios)
 # ==============================================================================
 
-# Fíjate que ahora parcheamos "routers.usuarios..." en lugar de "usuarios..."
 @patch("routers.usuarios.get_db_connection")
 def test_registro_usuario_exito(mock_get_db):
     """
@@ -156,7 +155,7 @@ def test_unirse_partida_llena(mock_verificar_usuario, mock_get_db):
     # Simulamos que la función verificar_usuario dice que SÍ existe
     mock_verificar_usuario.return_value = True
     
-    # Simulamos el orden exacto de las consultas de tu código real:
+    # Simulamos el orden exacto de las consultas que el endpoint realiza:
     mock_cursor.fetchone.side_effect = [
         {"id": 1},                 # 1ª Consulta: La partida existe
         {"num_jugadores": 4}       # 2ª Consulta: El conteo dice que ya hay 4 jugadores

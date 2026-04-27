@@ -23,10 +23,10 @@ def test_get_db_connection_exito(mock_connect):
     la variable de entorno DATABASE_URL e invoca al conector psycopg2.
     Se utiliza mock.patch para evitar una conexión real a PostgreSQL.
     """
-    # Act: Ejecución de la función a testear
+    # Ejecución de la función a testear
     conexion = get_db_connection()
     
-    # Assert: Verificación de que psycopg2.connect fue llamado correctamente
+    # Verificación de que psycopg2.connect fue llamado correctamente
     assert mock_connect.called
     assert conexion == mock_connect.return_value
 
@@ -62,7 +62,7 @@ def test_obtener_precio_objeto_db_existe(mock_get_db):
     # Simulamos que la base de datos encuentra el objeto y devuelve su precio
     mock_cursor.fetchone.return_value = {"precio": 15}
     
-    # Act
+    # Ejecución de la función a testear
     precio = obtener_precio_objeto_db("Salvavidas")
     
     # Assert
@@ -136,7 +136,7 @@ def test_eliminar_jugador_partida_exito(mock_get_db):
     mock_get_db.return_value = mock_conn
     mock_conn.cursor.return_value = mock_cursor
     
-    # Act
+    # Ejecución de la función a testear
     resultado = eliminar_jugador_partida("Edu1", 1)
     
     # Assert: Comprobamos que es exitoso
@@ -165,7 +165,7 @@ def test_eliminar_jugador_partida_rollback_por_excepcion(mock_get_db):
     # Simulamos un fallo crítico al intentar ejecutar la query
     mock_cursor.execute.side_effect = Exception("Fallo simulado de conexión o integridad")
     
-    # Act
+    # Ejecución de la función a testear
     resultado = eliminar_jugador_partida("Edu1", 1)
     
     # Assert
