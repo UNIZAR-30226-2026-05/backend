@@ -12,6 +12,7 @@ from funcionesAuxiliaresPartida import *
 from typing import Literal
 from routers.juego import *
 import random
+import asyncio
 from logicaMinijuegos import *
 
 MAX_JUGADORES_DEBUG = 1
@@ -35,6 +36,10 @@ class GameSession:
             self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
             self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
             self.minijuego_participantes = [] # Para gestionar los ids que participan en el minijuego actual
+            self.poker_fase = None
+            self.poker_bote = 0
+            self.poker_activos = [] # Jugadores que no se han retirado
+            self.poker_respuestas_fase = {} # Lo que ha hecho cada uno en la ronda actual
 
             self.ha_movido_en_turno = False #Para saber si spuede o no usar objetos
             self.ha_caido_en_barrera = False #Para saber si puede comprar salvaidas barrera o no
@@ -367,12 +372,25 @@ class GameManager:
                     elif extra == "Mano de Poker":
                         session.minijuego_actual = extra
                         session.minijuego_tipo = "casilla"
-                        # Los participantes son los jugadores con saldo mayor al mínimo (3 monedas)
-                        session.minijuego_participantes = [p_id for p_id, saldo in session.board_state["balances"].items() if saldo >= 3]
+                        # Participan los jugadores que tengan al menos 1 moneda para apostar
+                        session.minijuego_participantes = [p_id for p_id, saldo in session.board_state["balances"].items() if saldo > 0]
 
-                        # SORTEAR LAS CARTAS Y GUARDARLAS EN session.minijuego_detalles
-
-                        # AVISAR A LOS PARTICIPANTES CON LAS CARTAS QUE LES TOCAN A CADA UNO Y EN EL CENTRO DE LA MESA
+                        if len(session.minijuego_participantes) < 2:
+                            # Cancelar si no hay suficientes
+                            await session.broadcast({
+                                "type": "info", 
+                                "message": "No hay suficientes jugadores con saldo para jugar al póker."
+                            })
+                            session.minijuego_actual = None
+                            session.minijuego_participantes = []
+                        else:
+                            # Pedimos a cada participante que haga su apuesta 
+                            for p_id in session.minijuego_participantes:
+                                await session.players[p_id].send_json({
+                                    "type": "ini_minijuego",
+                                    "minijuego": extra,
+                                    "descripcion": "Haz tu apuesta para el bote de la Mano de Póker."
+                                })
 
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
@@ -564,23 +582,43 @@ class GameManager:
             case "score_minijuego":
                 score = payload["score"]
 
-                if session.minijuego_actual == "Doble o Nada":
-                    # Comprobamos que el score (apuesta) este dentro del saldo del jugador y sea positivo
+                if session.minijuego_actual in ["Doble o Nada", "Mano de Poker"]:
+                    # Comprobamos que la apuesta sea válida
                     if score <= 0 or score > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({
-                            "error": "La puntuación para 'Doble o Nada' debe ser un número positivo y menor o igual a tu saldo"
+                            "error": "La apuesta debe ser un número positivo y menor o igual a tu saldo"
                         })
                         return
                     else:
                         session.minijuego_scores[user] = score
-
                 else:
                     session.minijuego_scores[user] = score
 
                 # Comprobamos si todos los que debían jugar han terminado
                 if all(p in session.minijuego_scores for p in session.minijuego_participantes):
-                    await resolver_minijuego(session) 
-                    
+                    await resolver_minijuego(session)
+
+            case "poker_accion":
+                # El frontend envía: {"action": "poker_accion", "decision": "apostar" | "retirarse", "cantidad": 50}
+                decision = payload.get("decision")
+                cantidad = payload.get("cantidad", 0)
+
+                if user not in session.poker_activos:
+                    return # Si ya se retiró o no juega, ignoramos
+
+                if decision == "apostar":
+                    if cantidad < 0 or cantidad > session.board_state["balances"].get(user, 0):
+                        await session.players[user].send_json({"error": "Apuesta inválida o saldo insuficiente."})
+                        return
+                    session.poker_respuestas_fase[user] = {"decision": "apostar", "cantidad": cantidad}
+                
+                elif decision == "retirarse":
+                    session.poker_respuestas_fase[user] = {"decision": "retirarse", "cantidad": 0}
+
+                # Si todos los activos ya han respondido en esta fase, avanzamos la partida
+                if len(session.poker_respuestas_fase) == len(session.poker_activos):
+                    await avanzar_fase_poker(session)     
+
             case "anyadir_objeto":
                 nombre_objeto = payload["objeto"]
                 
