@@ -43,7 +43,6 @@ class GameSession:
 
             self.ha_movido_en_turno = False #Para saber si spuede o no usar objetos
             self.ha_caido_en_barrera = False #Para saber si puede comprar salvaidas barrera o no
-            self.ha_caido_en_casilla_negativa = (False, 0) # Para saber si puede comprar salvavidas de casilla negativa o no, y casillas restadas
             self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
             self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
 
@@ -329,12 +328,6 @@ class GameManager:
                         "nueva_casilla": nueva_casilla
                     })
 
-                    if extra < 0:
-                        # Marcamos que ha caído en casilla negativa y las casillas restadas para después gestionar la compra de salvavidas
-                        session.ha_caido_en_casilla_negativa = (True, abs(extra))
-
-                # VIGILAR CASO EN EL QUE HAYA DOS JUGADORES EN LA MISMA CASILLA (DILEMA PRISIONERO)
-
                 if tipo_casilla == 'mini':
                     # Tenemos que avisar al frontend del minijuego que ha caído
                     await session.broadcast({
@@ -441,7 +434,6 @@ class GameManager:
             case "end_round":
                 session.ha_movido_en_turno = False
                 session.ha_caido_en_barrera = False
-                session.ha_caido_en_casilla_negativa = (False, 0)
                 session.avance_extra = 0
                 # Añadimos los turnos de penalización pendientes y reducimos en uno la penalización que ya tenía si esq tenía
                 if session.board_state["penalty_turns"][user] > 0:
@@ -829,34 +821,7 @@ class GameManager:
                 saldo_actual = session.board_state["balances"].get(user, 0)
 
                 if saldo_actual >= precio:
-                    # Reducimos la penalización correspondiente de la casilla negativa
-                    if nombre_objeto == "Salvavidas movimiento":
-                        if session.ha_caido_en_casilla_negativa[0]:   # Solo se puede usar si ha caído en casilla negativa
-                            session.board_state["balances"][user] -= precio
-
-                            await session.broadcast({
-                                "type": "balances_changed",
-                                "balances": session.board_state["balances"]
-                            })
-
-                            extra = session.ha_caido_en_casilla_negativa[1]
-                            nueva_casilla = session.board_state["positions"].get(user) + extra
-                            session.board_state["positions"][user] = nueva_casilla
-                            actualizar_casilla(game_id, user, nueva_casilla)
-                            await session.broadcast({
-                                "type": "player_moved",
-                                "user": user,
-                                "nueva_casilla": nueva_casilla,
-                                "message": "Salvavidas usado para revertir movimiento negativo"
-                            })
-                            session.ha_caido_en_casilla_negativa = (False, 0)
-                        
-                        else:
-                            await session.players[user].send_json({
-                                "error": "No has caído en una casilla de movimiento negativo, no puedes usar este salvavidas."
-                            })
-
-                    elif nombre_objeto == "Salvavidas bloqueo":
+                    if nombre_objeto == "Salvavidas bloqueo":
                         # SOLO ESTÁ HECHO PARA ELIMINAR LA PENALIZACIÓN DE CASILLAS Y PONERLA SIEMPRE A 0. AÑADIR OBJETOSS???
                         if session.ha_caido_en_barrera:   # Solo se puede usar si ha caído en barrera
                             session.board_state["balances"][user] -= precio
