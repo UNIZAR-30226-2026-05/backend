@@ -1,0 +1,272 @@
+import pytest
+from fastapi.testclient import TestClient
+from fastapi.websockets import WebSocketDisconnect
+from unittest.mock import patch, MagicMock
+
+# Importación de la aplicación principal y de los gestores en memoria
+from main import app
+from gamemanager import manager
+from sessionmanager import lobby_manager
+
+# Instanciación del cliente de pruebas de FastAPI
+client = TestClient(app)
+
+# ==============================================================================
+# FIXTURES DE SEGURIDAD Y ESTADO (MOCKING AVANZADO)
+# ==============================================================================
+
+class AnyString(str):
+    """
+    Clase auxiliar de inyección (Wildcard Matcher). 
+    Sobreescribe los métodos de comparación mágica para que devuelva True 
+    ante cualquier comparación (ej: sesion['token'] != token).
+    """
+    def __eq__(self, other): return True
+    def __ne__(self, other): return False
+
+@pytest.fixture(autouse=True)
+def setup_entorno_websockets():
+    """
+    Limpia la memoria del servidor antes  de cada test y simula la capa 
+    de seguridad (JWT y PostgreSQL) para permitir 
+    la conexión del TestClient sin dependencias.
+    """
+    # 1. Purgado de estado (Evita la contaminación cruzada entre tests)
+    lobby_manager.active_users.clear()
+    lobby_manager.state_users.clear()
+    manager.active_games.clear()
+    
+    # Inyección de dependencias para la fase de Handshake
+    with patch("routers.websocket.jwt.decode") as mock_jwt, \
+         patch("routers.websocket.get_db_connection") as mock_db, \
+         patch("gamemanager.existe_partida", return_value=True), \
+         patch("gamemanager.jugador_en_partida", return_value=True), \
+         patch("sessionmanager.obtener_invitaciones_usuario", return_value=[]), \
+         patch("sessionmanager.obtener_todos_amigos_user", return_value=[]), \
+         patch("sessionmanager.obtener_todos_usuarios", return_value=["Edu1", "Edu2"]):
+         
+         # El token simulado será directamente el nombre del usuario
+         mock_jwt.side_effect = lambda token, *args, **kwargs: {"sub": token}
+         
+         # Mock de cursor para la verificación de sesión en la tabla SESION_ACTIVA
+         mock_cursor = MagicMock()
+         mock_cursor.fetchone.return_value = {"token": AnyString()}
+         mock_db.return_value.cursor.return_value = mock_cursor
+         
+         yield
+
+# ==============================================================================
+# FUNCIONES AUXILIARES DE CONTROL DE FLUJO ASÍNCRONO
+# ==============================================================================
+
+def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10) -> dict:
+    """
+    Esta función extrae mensajes de la cola de memoria del socket hasta dar con 
+    el payload objetivo, mitigando problemas en la llegada de red.
+    """
+    for _ in range(max_intentos):
+        mensaje = ws.receive_json()
+        if mensaje.get("type") == tipo_esperado:
+            return mensaje
+    pytest.fail(f"Se consumió el buffer (Max={max_intentos}) sin encontrar el evento: {tipo_esperado}")
+
+# ==============================================================================
+# TESTS DE WEBSOCKETS GAMEMANAGER
+# ==============================================================================
+
+def test_ws_conexion_partida_sin_token():
+    """
+    Prueba Negativa: Intento de conexión sin JWT.
+    Verifica el rechazo a nivel de protocolo (Status 1008/403).
+    """
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/partida/1") as ws:
+            ws.receive_json()
+
+def test_ws_conexion_exitosa_partida():
+    """
+    Conexión exitosa al entorno de Lobby.
+    Evalúa la correcta instanciación del pipeline de inicialización del jugador.
+    """
+    with client.websocket_connect("/ws/partida/1?token=Edu1") as ws:
+        respuesta = esperar_evento(ws, "friend_requests_list")
+        assert "lista" in respuesta
+
+def test_ws_accion_mover_jugador():
+    """
+    Verifica la actualización  del estado del tablero (Board State)
+    al transicionar una entidad a una nueva posición.
+    """
+    with client.websocket_connect("/ws/partida/3?token=Edu1") as ws1:
+        # Forzamos turno
+        sesion = manager.active_games["3"]
+        sesion.board_state["turn"] = "Edu1"
+        if "positions" not in sesion.board_state:
+            sesion.board_state["positions"] = {}
+        sesion.board_state["positions"]["Edu1"] = 0
+        
+        ws1.send_json({"action": "move_player", "dice_result": 5})
+        
+        respuesta = esperar_evento(ws1, "player_moved")
+        assert respuesta["user"] == "Edu1"
+        assert sesion.board_state["positions"]["Edu1"] == 5
+
+def test_ws_accion_comprar_objeto():
+    """
+    Prueba de Transacción Económica en memoria.
+    Evalúa la reducción de saldo vinculada a la compra de un objeto.
+    """
+    with client.websocket_connect("/ws/partida/4?token=Edu1") as ws1:
+        sesion = manager.active_games["4"]
+        sesion.board_state["turn"] = "Edu1"
+        if "balances" not in sesion.board_state:
+            sesion.board_state["balances"] = {}
+        sesion.board_state["balances"]["Edu1"] = 1000  
+        
+        ws1.send_json({
+            "action": "comprar_objeto", 
+            "objeto": "barrera"
+        })
+        
+        respuesta = esperar_evento(ws1, "inventory_updated")
+        assert respuesta["user"] == "Edu1"
+        assert respuesta["objeto_obtenido"] == "barrera"
+
+def test_ws_accion_fin_de_turno():
+    """
+    Verifica que se pase bien de turno.
+    """
+    with client.websocket_connect("/ws/partida/5?token=Edu1") as ws1:
+        sesion = manager.active_games["5"]
+        sesion.players["Edu2"] = None 
+        sesion.board_state["turn"] = "Edu1"
+        sesion.board_state["order"] = {"Edu1": 1, "Edu2": 2}
+        
+        ws1.send_json({"action": "end_round"})
+        
+        respuesta = esperar_evento(ws1, "turn_changed")
+        assert sesion.board_state["turn"] == "Edu2"
+
+def test_ws_penalizacion_barrera():
+    """
+    NUEVO: Verifica que un jugador bloqueado no puede mover.
+    """
+    with client.websocket_connect("/ws/partida/10?token=Edu1") as ws:
+        sesion = manager.active_games["10"]
+        # Simulamos que ya cayó en una barrera
+        sesion.board_state["penalty_turns"]["Edu1"] = 2
+        
+        ws.send_json({"action": "move_player"})
+        
+        # El servidor debe responder con un error (según tu gamemanager.py:230)
+        respuesta = ws.receive_json()
+        assert "error" in respuesta
+        assert "turnos de penalización" in respuesta["error"]
+
+# ==============================================================================
+# TESTS DE WEBSOCKETS SESION
+# ==============================================================================
+
+def test_ws_conexion_sesion_sin_token():
+    """
+    Prueba Negativa: Intento de conexión sin JWT.
+    Verifica el rechazo a nivel de protocolo (Status 1008/403).
+    """
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/usuario/Edu1") as ws:
+            ws.receive_json()
+
+def test_ws_conexion_sesion():
+    """
+    Prueba Negativa: Intento de conexión sin JWT.
+    Verifica el rechazo a nivel de protocolo (Status 1008/403).
+    """
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/usuario/Edu1?token=Edu1") as ws:
+            repuesta = esperar_evento(ws,"friend_requests_list" )
+            assert "lista" in repuesta
+
+def test_ws_accion_get_online_friends():
+    """
+    Prueba sobre WS: Acción 'get_online_friends'.
+    """
+    with client.websocket_connect("/ws/usuario/Edu1?token=Edu1") as ws:
+        # Emitimos la instrucción
+        ws.send_json({"action": "get_online_friends"})
+        
+        # Validamos el callback
+        respuesta = esperar_evento(ws, "online_friends_list")
+        assert "friends" in respuesta["payload"]
+
+
+def test_ws_accion_send_request_usuario_inexistente():
+    """
+    Prueba Negativa: 
+    Intento de agregación de un usuario no existente.
+    """
+    with client.websocket_connect("/ws/usuario/Edu?token=Edu1") as ws:
+        ws.send_json({
+            "action": "send_request", 
+            "payload": {"player_id": "UsuarioFantasma"}
+        })
+        
+        respuesta = esperar_evento(ws, "user_not_exists")
+        assert respuesta["username"] == "UsuarioFantasma"
+
+def test_ws_accion_send_request_usuario_conectado():
+    """
+    Intento de agregación de un usuario conectado en el momento.
+    """
+    with client.websocket_connect("/ws/usuario/Edu1?token=Edu1") as ws1:
+        with client.websocket_connect("/ws/usuario/Edu2?token=Edu2") as ws2:
+            ws1.send_json({
+                "action": "send_request", 
+                "payload": {"player_id": "Edu2"}
+            })
+            
+            respuesta1 = esperar_evento(ws1, "request_sended")
+            assert respuesta1["username"] == "Edu2"
+            respuesta2 = esperar_evento(ws2, "new_friend_request")
+            assert respuesta2["from_user"] == "Edu1"
+
+def test_ws_accion_send_request_ya_amigos():
+    """
+    Intento de agregación de un usuario conectado en el momento.
+    """
+    with client.websocket_connect("/ws/usuario/Edu1?token=Edu1") as ws1:
+        with client.websocket_connect("/ws/usuario/Edu2?token=Edu2") as ws2:
+            ws1.send_json({
+                "action": "send_request", 
+                "payload": {"player_id": "Edu2"}
+            })
+            ws2.send_json({
+                "action": "accept_request",
+                "player_id": Edu1
+            })
+
+            ws1.send_json({
+                "action": "send_request", 
+                "payload": {"player_id": "Edu2"}
+            })
+
+            respuesta = esperar_evento(ws1, "failed_request")
+            assert respuesta["username"] == Edu2
+            
+
+def test_ws_accion_invite_friend_real():
+    """
+    Valida el envio correcto de invitaciones a partida
+    """
+    # Edu2 se conecta para recibir la invitación
+    with client.websocket_connect("/ws/usuario/Edu2?token=Edu2") as ws_edu2:
+        # Edu1 se conecta para enviarla
+        with client.websocket_connect("/ws/usuario/Edu1?token=Edu1") as ws_edu1:
+            ws_edu1.send_json({
+                "action": "invite_friend",
+                "payload": {"friend_id": "Edu2", "game_id": 99}
+            })
+            
+            respuesta = esperar_evento(ws_edu2, "receive_invite")
+            assert respuesta["from_user"] == "Edu1"
+            assert respuesta["game_id"] == 99
+

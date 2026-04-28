@@ -103,13 +103,13 @@ class SessionManager:
 
                 check = enviarSolicitud(user, target_player)
                 if check:
-                    # 1. Le confirmamos al que envió la solicitud
+                    # Le confirmamos al que envió la solicitud
                     await self.send_personal_message(user, {
                         "type": "request_sended",
                         "username": target_player 
                     })
                     
-                    # 2. NUEVO: Le avisamos al destinatario si está conectado
+                    # Le avisamos al destinatario si está conectado
                     if self.is_user_online(target_player):
                         await self.send_personal_message(target_player, {
                             "type": "new_friend_request",
