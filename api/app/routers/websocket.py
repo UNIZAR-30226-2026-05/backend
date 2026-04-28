@@ -113,7 +113,7 @@ async def active_session(websocket: WebSocket, user: str, token: str):
             try:
                 action_data = PlayerAction(**data)
                 
-                await lobby_manager.process_action(user, action_data.action, action_data.payload)
+                await lobby_manager.process_action(player_id, action_data.action, action_data.payload)
 
             except ValidationError:
                 await websocket.send_json({"error": "Formato de mensaje invalido"})

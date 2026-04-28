@@ -85,9 +85,7 @@ class SessionManager:
                 
                 await self.send_personal_message(user, {
                     "type": "online_friends_list",
-                    "payload": {
-                        "friends": amigos_conectados
-                    }
+                    "friends": amigos_conectados  
                 })
 
             case "send_request":
