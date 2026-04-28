@@ -15,7 +15,7 @@ import random
 import asyncio
 from logicaMinijuegos import *
 
-MAX_JUGADORES_DEBUG = 1
+MAX_JUGADORES = 4
 META = 71
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
@@ -49,7 +49,7 @@ class GameSession:
 
         @property
         def is_full(self):
-            return len(self.players) == MAX_JUGADORES_DEBUG
+            return len(self.players) == MAX_JUGADORES
         
         async def broadcast (self, message: dict):
             jugadores_desconectados = []
@@ -185,7 +185,6 @@ class GameManager:
                     del session.board_state["positions"][player_id]
                     del session.board_state["balances"][player_id]
                     del session.board_state["turns"][player_id]
-                    del session.board_state["order"][player_id]
                     del session.board_state["inventory"][player_id]
                     del session.board_state["penalty_turns"][player_id]
                     del session.penalizacion_pendiente[player_id]
@@ -248,7 +247,7 @@ class GameManager:
                         "character": character
                     })
 
-                    if num_personajes + 1 == MAX_JUGADORES_DEBUG:         # Fin de elecciones -> Inicio de partida real
+                    if num_personajes + 1 == MAX_JUGADORES:         # Fin de elecciones -> Inicio de partida real
                         await session.broadcast({
                             "type": "all_players_selected",
                             "message": "Fin de elección de personajes"
@@ -461,7 +460,7 @@ class GameManager:
                 session.players_en_fin_ronda += 1
 
                 # Si los 4 han acabado la ronda lanzar dados y avisar al visionario
-                if session.players_en_fin_ronda == MAX_JUGADORES_DEBUG:
+                if session.players_en_fin_ronda == MAX_JUGADORES:
                     session.players_en_fin_ronda = 0
                     
                     session.dados["izq"] = []

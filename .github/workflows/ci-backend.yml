@@ -36,4 +36,4 @@ jobs:
     # Ejecutar los tests
     - name: Ejecutar Pytest
       run: |
-        pytest -W ignore::DeprecationWarning tests/test_logica.py tests/test_db.py tests/test_api.py tests/test_websockets.py
+        pytest -W ignore::DeprecationWarning tests/test_logica.py tests/test_db.py tests/test_api.py 

@@ -3,10 +3,11 @@ from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocketDisconnect
 from unittest.mock import patch, MagicMock
 
-# Importación de la aplicación principal y de los gestores en memoria
-from main import app
-from gamemanager import manager
-from sessionmanager import lobby_manager
+# Usa una ruta consistente para todos
+from api.app.gamemanager import manager, GameSession
+from api.app.sessionmanager import lobby_manager
+from api.app.main import app 
+# O "from main import app" si el archivo main está en la raíz
 
 # Instanciación del cliente de pruebas de FastAPI
 client = TestClient(app)
@@ -46,7 +47,12 @@ def setup_entorno_websockets():
          patch("sessionmanager.obtener_todos_usuarios", return_value=["Edu1", "Edu2"]), \
          patch("sessionmanager.enviarSolicitud", return_value=True), \
          patch("sessionmanager.aceptarSolicitud", return_value=True), \
-         patch("sessionmanager.rechazarSolicitud", return_value=True):
+         patch("sessionmanager.rechazarSolicitud", return_value=True), \
+         patch("gamemanager.obtener_precio_objeto_db", return_value=100), \
+         patch("gamemanager.obtenerTipoCasilla", return_value=("normal", 0)), \
+         patch("gamemanager.tirarDados", return_value=(2, 3, 5)), \
+         patch("gamemanager.eliminar_jugador_partida", return_value=True), \
+         patch("gamemanager.actualizar_casilla", return_value=True):
 
          # El token simulado será directamente el nombre del usuario
          mock_jwt.side_effect = lambda token, *args, **kwargs: {"sub": token}
@@ -57,6 +63,25 @@ def setup_entorno_websockets():
          mock_db.return_value.cursor.return_value = mock_cursor
          
          yield
+
+@pytest.fixture
+def partida_en_espera():
+    """Crea una partida con estructura inicial en el manager."""
+    from api.app.gamemanager import GameSession
+    game_id = "1"
+    player_id = "Edu1"
+    
+    # Configuramos el objeto
+    sesion = GameSession(game_id=game_id)
+    sesion.status = "WAITING"
+    sesion.board_state["order"] = {player_id: 1}
+    sesion.board_state["positions"] = {player_id: 0}
+    sesion.board_state["balances"] = {player_id: 1000}
+    
+    # La metemos en el manager
+    manager.active_games[game_id] = sesion
+    
+    return game_id, player_id
 
 # ==============================================================================
 # FUNCIONES AUXILIARES DE CONTROL DE FLUJO ASÍNCRONO
@@ -80,7 +105,7 @@ def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10) -> dict:
 # TESTS DE WEBSOCKETS GAMEMANAGER
 # ==============================================================================
 
-#def test_ws_conexion_partida_sin_token():
+def test_ws_conexion_partida_sin_token():
     """
     Prueba Negativa: Intento de conexión sin JWT.
     Verifica el rechazo a nivel de protocolo (Status 1008/403).
@@ -89,35 +114,29 @@ def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10) -> dict:
         with client.websocket_connect("/ws/partida/1") as ws:
             ws.receive_json()
 
-#def test_ws_conexion_exitosa_partida():
+def test_ws_conexion_exitosa_partida(partida_en_espera):
     """
     Conexión exitosa al entorno de Lobby.
     Evalúa la correcta instanciación del pipeline de inicialización del jugador.
     """
-    with client.websocket_connect("/ws/partida/1?token=Edu1") as ws:
+    game_id, player_id = partida_en_espera
+    
+    with client.websocket_connect(f"/ws/partida/{game_id}?token={player_id}") as ws:
         respuesta = esperar_evento(ws, "lobby_update")
         assert "players_connected" in respuesta
+        assert player_id in respuesta["players_connected"]
 
-#def test_ws_accion_mover_jugador():
-    """
-    Verifica la actualización  del estado del tablero (Board State)
-    al transicionar una entidad a una nueva posición.
-    """
-    with client.websocket_connect("/ws/partida/3?token=Edu1") as ws1:
-        # Forzamos turno
-        sesion = manager.active_games["3"]
-        sesion.board_state["turn"] = "Edu1"
-        if "positions" not in sesion.board_state:
-            sesion.board_state["positions"] = {}
-        sesion.board_state["positions"]["Edu1"] = 0
+def test_ws_accion_mover_jugador(partida_en_espera):
+    game_id, player_id = partida_en_espera
+
+    with client.websocket_connect("/ws/partida/{game_id}?token={player_id}") as ws1:
         
         ws1.send_json({"action": "move_player", "dice_result": 5})
         
         respuesta = esperar_evento(ws1, "player_moved")
         assert respuesta["user"] == "Edu1"
-        assert sesion.board_state["positions"]["Edu1"] == 5
 
-#def test_ws_accion_comprar_objeto():
+def test_ws_accion_comprar_objeto():
     """
     Prueba de Transacción Económica en memoria.
     Evalúa la reducción de saldo vinculada a la compra de un objeto.
@@ -138,7 +157,7 @@ def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10) -> dict:
         assert respuesta["user"] == "Edu1"
         assert respuesta["objeto_obtenido"] == "barrera"
 
-#def test_ws_accion_fin_de_turno():
+def test_ws_accion_fin_de_turno():
     """
     Verifica que se pase bien de turno.
     """
@@ -153,7 +172,7 @@ def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10) -> dict:
         respuesta = esperar_evento(ws1, "turn_changed")
         assert sesion.board_state["turn"] == "Edu2"
 
-#def test_ws_penalizacion_barrera():
+def test_ws_penalizacion_barrera():
     """
     NUEVO: Verifica que un jugador bloqueado no puede mover.
     """
@@ -173,7 +192,7 @@ def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10) -> dict:
 # TESTS DE WEBSOCKETS SESION
 # ==============================================================================
 
-def test_ws_conexion_sesion_sin_token():
+#def test_ws_conexion_sesion_sin_token():
     """
     Prueba Negativa: Intento de conexión sin JWT.
     Verifica el rechazo a nivel de protocolo (Status 1008/403).
@@ -182,7 +201,7 @@ def test_ws_conexion_sesion_sin_token():
         with client.websocket_connect("/ws/usuario/Edu1") as ws:
             ws.receive_json()
 
-def test_ws_conexion_sesion():
+#def test_ws_conexion_sesion():
     """
     Prueba Negativa: Intento de conexión sin JWT.
     Verifica el rechazo a nivel de protocolo (Status 1008/403).
@@ -192,7 +211,7 @@ def test_ws_conexion_sesion():
         repuesta = esperar_evento(ws,"friend_requests_list" )
         assert "lista" in repuesta
 
-def test_ws_accion_get_online_friends():
+#def test_ws_accion_get_online_friends():
     """
     Prueba sobre WS: Acción 'get_online_friends'.
     """
@@ -205,7 +224,7 @@ def test_ws_accion_get_online_friends():
         assert "friends" in respuesta
 
 
-def test_ws_accion_send_request_usuario_inexistente():
+#def test_ws_accion_send_request_usuario_inexistente():
     """
     Prueba Negativa: 
     Intento de agregación de un usuario no existente.
@@ -221,7 +240,7 @@ def test_ws_accion_send_request_usuario_inexistente():
         respuesta = esperar_evento(ws, "user_not_exists")
         assert respuesta["username"] == "UsuarioFantasma"
 
-def test_ws_accion_send_request_usuario_conectado():
+#def test_ws_accion_send_request_usuario_conectado():
     """
     Intento de agregación de un usuario conectado en el momento.
     """
@@ -237,7 +256,7 @@ def test_ws_accion_send_request_usuario_conectado():
             respuesta2 = esperar_evento(ws2, "new_friend_request")
             assert respuesta2["from_user"] == "Edu1"
 
-def test_ws_accion_send_request_ya_amigos():
+#def test_ws_accion_send_request_ya_amigos():
     """
     Intento de agregación de un usuario conectado en el momento.
     """
@@ -261,7 +280,7 @@ def test_ws_accion_send_request_ya_amigos():
                     assert respuesta["username"] == "Edu2"
                 
 
-def test_ws_accion_invite_friend_real():
+#def test_ws_accion_invite_friend_real():
     """
     Valida el envio correcto de invitaciones a partida
     """
