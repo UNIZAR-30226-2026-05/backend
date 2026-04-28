@@ -1,4 +1,4 @@
-from schemas import UsuarioPublico, UsuarioRegistro, MinijuegoInfo 
+from schemas import CambioContrasena, UsuarioPublico, UsuarioRegistro, MinijuegoInfo 
 from database import get_db_connection
 
 from fastapi import APIRouter, HTTPException, status, Depends
@@ -67,7 +67,7 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
         
     finally:
         cursor.close()
-        conn.close()
+        conn.close()  
 
 # ---------------------------------------------------------
 # LEER TODOS USERS (GET)
@@ -332,7 +332,7 @@ def enviarSolicitud(solicitante: str, solicitado: str):
         ya_son_amigos = cursor.fetchone()
         
         if ya_son_amigos:
-            print(f"{user1} y {user2} ya eran amigos. Operación cancelada.")
+            print(f"{solicitante} y {solicitado} ya eran amigos. Operación cancelada.")
             return False
             
         insert_query = """
@@ -416,6 +416,67 @@ def obtener_invitaciones_usuario(player_id: str):
         print(f"Error en la base de datos al añadir amigo: {e}")
         conn.rollback() # Por si la base de datos se queda bloqueada
         return False
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+# ---------------------------------------------------------
+# CAMBIO CONTRASEÑA (POST)
+# ---------------------------------------------------------
+#Response model es el modelo de salida también definidio en pydantic
+@router.post("/cambio_contrasena/", response_model=UsuarioPublico, status_code=status.HTTP_200_OK) 
+def cambiar_contrasena(datos: CambioContrasena, usuario_actual: str = Depends(obtener_usuario_actual)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Buscamos el hash actual
+        query = "SELECT password FROM USUARIOS.USUARIO WHERE nombre = %s"
+        cursor.execute(query, (usuario_actual,))
+        resultado = cursor.fetchone()
+
+        # Verificamos si existe el usuario y si la contraseña coincide
+        if not resultado or not verificar_password(datos.contrasena_actual, resultado["password"]):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="La contraseña actual es incorrecta",
+            )
+
+        # Hasheamos la nueva
+        hashed_password = obtener_hash_password(datos.contrasena_nueva)
+
+        # Actualizamos y devolvemos el nombre del usuario
+        query = """
+            UPDATE USUARIOS.USUARIO 
+            SET password = %s 
+            WHERE nombre = %s
+            RETURNING nombre; 
+        """
+        cursor.execute(query, (hashed_password, usuario_actual))
+        
+        result = cursor.fetchone()
+        conn.commit()
+
+        if not result:  # No debería llegar aquí porque el usuario ya se ha verificado antes, pero por si acaso
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado",
+            )
+
+        return {"nombre": result["nombre"]}
+        
+    except HTTPException:
+        conn.rollback()
+        raise
+        
+    except Exception as e:
+        print(f"Error en la base de datos al cambiar contrasena: {e}")
+        conn.rollback() # Por si la base de datos se queda bloqueada
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno al cambiar la contrasena",
+        )
         
     finally:
         cursor.close()

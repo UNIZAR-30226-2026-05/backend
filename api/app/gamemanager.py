@@ -511,7 +511,9 @@ class GameManager:
 
                     match minijuego:
                         case "Tren":
-                            session.minijuego_detalles = {"objetivo": random.randint(15, 30)}                 
+                            vagones, total_pasajeros = sortear_vagones()
+                            # Objetivo es el número de pasajeros en total y vagones los índices de los vagones que hay que mostrar
+                            session.minijuego_detalles = {"objetivo": total_pasajeros, "vagones": vagones}
                         case "Reflejos":
                             session.minijuego_detalles = {"objetivo": random.randint(2000, 5000)}    # Valores en ms
                         case "Mayor o Menor":
@@ -584,7 +586,7 @@ class GameManager:
 
                 if session.minijuego_actual in ["Doble o Nada", "Mano de Poker"]:
                     # Comprobamos que la apuesta sea válida
-                    if score <= 0 or score > session.board_state["balances"].get(user, 0):
+                    if score < 0 or score > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({
                             "error": "La apuesta debe ser un número positivo y menor o igual a tu saldo"
                         })
