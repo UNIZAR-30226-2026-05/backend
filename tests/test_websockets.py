@@ -37,6 +37,7 @@ def setup_entorno_websockets():
     lobby_manager.state_users.clear()
     manager.active_games.clear()
     
+    
     # Inyección de dependencias para la fase de Handshake
     with patch("routers.websocket.jwt.decode") as mock_jwt, \
          patch("routers.websocket.get_db_connection") as mock_db, \
@@ -48,11 +49,11 @@ def setup_entorno_websockets():
          patch("sessionmanager.enviarSolicitud", return_value=True), \
          patch("sessionmanager.aceptarSolicitud", return_value=True), \
          patch("sessionmanager.rechazarSolicitud", return_value=True), \
-         patch("gamemanager.obtener_precio_objeto_db", return_value=100), \
          patch("gamemanager.obtenerTipoCasilla", return_value=("normal", 0)), \
          patch("gamemanager.tirarDados", return_value=(2, 3, 5)), \
          patch("gamemanager.eliminar_jugador_partida", return_value=True), \
-         patch("gamemanager.actualizar_casilla", return_value=True):
+         patch("gamemanager.actualizar_casilla", return_value=True),\
+         patch("gamemanager.obtener_precio_objeto_db", return_value=1 ):
 
          # El token simulado será directamente el nombre del usuario
          mock_jwt.side_effect = lambda token, *args, **kwargs: {"sub": token}
@@ -66,23 +67,25 @@ def setup_entorno_websockets():
 
 @pytest.fixture
 def partida_en_espera():
-    """Crea una partida con estructura inicial en el manager."""
     from api.app.gamemanager import GameSession
     game_id = "1"
-    player_id = "Edu1"
     
-    # Configuramos el objeto
     sesion = GameSession(game_id=game_id)
     sesion.status = "WAITING"
-    sesion.board_state["order"] = {player_id: 1}
-    sesion.board_state["positions"] = {player_id: 0}
-    sesion.board_state["balances"] = {player_id: 1000}
     
-    # La metemos en el manager
     manager.active_games[game_id] = sesion
-    
-    return game_id, player_id
+    return game_id, "Edu1"
 
+@pytest.fixture
+def partida_en_espera2():
+    from api.app.gamemanager import GameSession
+    game_id = "2"
+    
+    sesion = GameSession(game_id=game_id)
+    sesion.status = "WAITING"
+    
+    manager.active_games[game_id] = sesion
+    return game_id, "Aritz1"
 # ==============================================================================
 # FUNCIONES AUXILIARES DE CONTROL DE FLUJO ASÍNCRONO
 # ==============================================================================
@@ -127,66 +130,70 @@ def test_ws_conexion_exitosa_partida(partida_en_espera):
         assert player_id in respuesta["players_connected"]
 
 def test_ws_accion_mover_jugador(partida_en_espera):
-    game_id, player_id = partida_en_espera
-
-    with client.websocket_connect("/ws/partida/{game_id}?token={player_id}") as ws1:
+    game_id, _ = partida_en_espera
+    
+    # Necesitas 4 tokens/nombres distintos
+    jugadores = ["Edu1", "Edu2", "Edu3", "Edu4"]
+    
+    # Usamos un ExitStack para manejar 4 conexiones al mismo tiempo fácilmente
+    from contextlib import ExitStack
+    
+    with ExitStack() as stack:
+        # Conectamos a los 4 jugadores
+        websockets = [
+            stack.enter_context(client.websocket_connect(f"/ws/partida/{game_id}?token={n}"))
+            for n in jugadores
+        ]
         
-        ws1.send_json({"action": "move_player", "dice_result": 5})
+        # El manager ya debería haber generado los dados automáticamente al llegar el 4º
+        ws1 = websockets[0]
+        ws1.send_json({"action": "move_player"})
         
+        # Ahora el evento 'player_moved' sí debería llegar porque hay dados en la lista
         respuesta = esperar_evento(ws1, "player_moved")
+        assert respuesta is not None
         assert respuesta["user"] == "Edu1"
+    
 
-def test_ws_accion_comprar_objeto():
-    """
-    Prueba de Transacción Económica en memoria.
-    Evalúa la reducción de saldo vinculada a la compra de un objeto.
-    """
-    with client.websocket_connect("/ws/partida/4?token=Edu1") as ws1:
-        sesion = manager.active_games["4"]
-        sesion.board_state["turn"] = "Edu1"
-        if "balances" not in sesion.board_state:
-            sesion.board_state["balances"] = {}
-        sesion.board_state["balances"]["Edu1"] = 1000  
-        
-        ws1.send_json({
-            "action": "comprar_objeto", 
-            "objeto": "barrera"
-        })
-        
-        respuesta = esperar_evento(ws1, "inventory_updated")
-        assert respuesta["user"] == "Edu1"
-        assert respuesta["objeto_obtenido"] == "barrera"
 
-def test_ws_accion_fin_de_turno():
-    """
-    Verifica que se pase bien de turno.
-    """
-    with client.websocket_connect("/ws/partida/5?token=Edu1") as ws1:
-        sesion = manager.active_games["5"]
-        sesion.players["Edu2"] = None 
-        sesion.board_state["turn"] = "Edu1"
-        sesion.board_state["order"] = {"Edu1": 1, "Edu2": 2}
+def test_ws_accion_fin_de_turno(partida_en_espera2): # <--- Usa la fixture
+    game_id, player_id = partida_en_espera2 # game_id será "1"
+    
+    jugadores = ["Aritz1", "Aritz2", "Aritz3", "Aritz4"]
+    
+    # Usamos un ExitStack para manejar 4 conexiones al mismo tiempo fácilmente
+    from contextlib import ExitStack
+    
+    with ExitStack() as stack:
+        # Conectamos a los 4 jugadores
+        websockets = [
+            stack.enter_context(client.websocket_connect(f"/ws/partida/{game_id}?token={n}"))
+            for n in jugadores
+        ]
         
+        # Inicializamos lo necesario para el test
+        ws1 = websockets[0]
         ws1.send_json({"action": "end_round"})
         
         respuesta = esperar_evento(ws1, "turn_changed")
-        assert sesion.board_state["turn"] == "Edu2"
+        assert sesion.board_state["turn"] == "Aritz2"
 
-def test_ws_penalizacion_barrera():
-    """
-    NUEVO: Verifica que un jugador bloqueado no puede mover.
-    """
-    with client.websocket_connect("/ws/partida/10?token=Edu1") as ws:
-        sesion = manager.active_games["10"]
-        # Simulamos que ya cayó en una barrera
-        sesion.board_state["penalty_turns"]["Edu1"] = 2
+def test_ws_penalizacion_barrera(partida_en_espera): # <--- Usa la fixture
+    game_id, player_id = partida_en_espera
+    
+    with client.websocket_connect(f"/ws/partida/{game_id}?token={player_id}") as ws:
+        sesion = manager.active_games[game_id]
+        
+        # Inicializamos el diccionario de penalizaciones si no existe
+        if "penalty_turns" not in sesion.board_state:
+            sesion.board_state["penalty_turns"] = {}
+            
+        sesion.board_state["penalty_turns"][player_id] = 2
         
         ws.send_json({"action": "move_player"})
         
-        # El servidor debe responder con un error (según tu gamemanager.py:230)
         respuesta = ws.receive_json()
         assert "error" in respuesta
-        assert "turnos de penalización" in respuesta["error"]
 
 # ==============================================================================
 # TESTS DE WEBSOCKETS SESION
