@@ -4,13 +4,21 @@ from fastapi.websockets import WebSocketDisconnect
 from unittest.mock import patch, MagicMock
 
 # Usa una ruta consistente para todos
-from api.app.gamemanager import manager, GameSession
-from api.app.sessionmanager import lobby_manager
+from gamemanager import manager, GameSession
+from sessionmanager import lobby_manager
 from api.app.main import app 
 # O "from main import app" si el archivo main está en la raíz
 
 # Instanciación del cliente de pruebas de FastAPI
 client = TestClient(app)
+
+# Contador global para game_ids únicos
+_game_id_counter = 0
+
+def _get_unique_game_id():
+    global _game_id_counter
+    _game_id_counter += 1
+    return str(_game_id_counter)
 
 # ==============================================================================
 # FIXTURES DE SEGURIDAD Y ESTADO (MOCKING AVANZADO)
@@ -32,11 +40,15 @@ def setup_entorno_websockets():
     de seguridad (JWT y PostgreSQL) para permitir 
     la conexión del TestClient sin dependencias.
     """
-    # 1. Purgado de estado (Evita la contaminación cruzada entre tests)
+    # 1. Purgado de estado ANTES (Evita la contaminación cruzada entre tests)
+    # Limpiamos todas las conexiones existentes
+    for game_id in list(manager.active_games.keys()):
+        session = manager.active_games[game_id]
+        session.players.clear()
+    
     lobby_manager.active_users.clear()
     lobby_manager.state_users.clear()
     manager.active_games.clear()
-    
     
     # Inyección de dependencias para la fase de Handshake
     with patch("routers.websocket.jwt.decode") as mock_jwt, \
@@ -64,11 +76,19 @@ def setup_entorno_websockets():
          mock_db.return_value.cursor.return_value = mock_cursor
          
          yield
+    
+    # 2. Purgado de estado DESPUÉS (Limpieza post-test)
+    for game_id in list(manager.active_games.keys()):
+        session = manager.active_games[game_id]
+        session.players.clear()
+    
+    lobby_manager.active_users.clear()
+    lobby_manager.state_users.clear()
+    manager.active_games.clear()
 
 @pytest.fixture
 def partida_en_espera():
-    from api.app.gamemanager import GameSession
-    game_id = "1"
+    game_id = _get_unique_game_id()
     
     sesion = GameSession(game_id=game_id)
     sesion.status = "WAITING"
@@ -78,8 +98,7 @@ def partida_en_espera():
 
 @pytest.fixture
 def partida_en_espera2():
-    from api.app.gamemanager import GameSession
-    game_id = "2"
+    game_id = _get_unique_game_id()
     
     sesion = GameSession(game_id=game_id)
     sesion.status = "WAITING"
@@ -90,19 +109,31 @@ def partida_en_espera2():
 # FUNCIONES AUXILIARES DE CONTROL DE FLUJO ASÍNCRONO
 # ==============================================================================
 
-def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10) -> dict:
+def esperar_evento(ws, tipo_esperado: str, max_intentos: int = 10, timeout: float = 5.0) -> dict:
     print(f"\n[DEBUG] Esperando evento: {tipo_esperado}")
+    import time
+    start_time = time.time()
+    
     for i in range(max_intentos):
         try:
+            if time.time() - start_time > timeout:
+                pytest.fail(f"Timeout esperando {tipo_esperado} (>{timeout}s)")
+            
             mensaje = ws.receive_json()
+            
+            if mensaje is None:
+                print(f"[DEBUG] Intento {i+1}: Conexión cerrada (recibió None)")
+                pytest.fail(f"Conexión cerrada mientras se esperaba {tipo_esperado}")
+            
             print(f"[DEBUG] Intento {i+1}: Recibido {mensaje.get('type')}")
             
             if mensaje.get("type") == tipo_esperado:
                 return mensaje
         except Exception as e:
             print(f"[DEBUG] Error en la conexión: {e}")
-            break
-    pytest.fail(f"Bloqueo detectado buscando {tipo_esperado}")
+            pytest.fail(f"Error esperando {tipo_esperado}: {e}")
+    
+    pytest.fail(f"Bloqueo detectado buscando {tipo_esperado} (intentos agotados)")
 
 # ==============================================================================
 # TESTS DE WEBSOCKETS GAMEMANAGER
@@ -153,6 +184,34 @@ def test_ws_accion_mover_jugador(partida_en_espera):
         respuesta = esperar_evento(ws1, "player_moved")
         assert respuesta is not None
         assert respuesta["user"] == "Edu1"
+
+
+def test_ws_accion_comprar_objeto(partida_en_espera):
+    game_id, _ = partida_en_espera
+    jugadores = ["Edu1", "Edu2"]
+
+    from contextlib import ExitStack
+
+    with ExitStack() as stack:
+        websockets = [
+            stack.enter_context(client.websocket_connect(f"/ws/partida/{game_id}?token={n}"))
+            for n in jugadores
+        ]
+
+        ws1 = websockets[0]
+
+        ws1.send_json({
+            "action": "comprar_objeto",
+            "payload": {"objeto": "Avanzar Casillas"}
+        })
+
+        respuesta_saldo = esperar_evento(ws1, "balances_changed")
+        assert respuesta_saldo["balances"]["Edu1"] == 0
+
+        respuesta_inventario = esperar_evento(ws1, "inventory_updated")
+        assert respuesta_inventario["user"] == "Edu1"
+        assert respuesta_inventario["objeto_obtenido"] == "Avanzar Casillas"
+        assert "Avanzar Casillas" in respuesta_inventario["inventario_actual"]
     
 
 
