@@ -15,7 +15,7 @@ import random
 import asyncio
 from logicaMinijuegos import *
 
-MAX_JUGADORES = 4
+MAX_JUGADORES = 2
 META = 71
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
@@ -383,6 +383,7 @@ class GameManager:
                                     "minijuego": extra,
                                     "descripcion": "Haz tu apuesta para el bote de la Mano de Póker."
                                 })
+                            await iniciar_poker_real(session)
 
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
