@@ -228,10 +228,11 @@ async def resolver_showdown_poker(session, ganadores_por_abandono):
         ganador_id = ganadores_por_abandono[0]
         session.board_state["balances"][ganador_id] += bote
         await session.broadcast({
-            "type": "poker_victoria_abandono",
-            "ganador": ganador_id,
+            "type": "poker_resultados",
+            "id_ganadores": [ganador_id],
             "bote_ganado": bote,
-            "mensaje": f"{ganador_id} gana {bote} monedas porque los demás se retiraron!"
+            "resultados_ordenados": [{"user": ganador_id, "mano": "victoria por abandono", "cartas": []}],
+            "mesa_completa": [carta_a_dict(c) for c in session.minijuego_detalles.get("mesa_visible", [])],
         })
     
     # Si llegamos al River, evaluamos las cartas
@@ -246,10 +247,10 @@ async def resolver_showdown_poker(session, ganadores_por_abandono):
                 
                 puntos, kickers = evaluar_jugada(mano + mesa_completa)
                 resultados.append({
-                    "usuario_id": p_id,
+                    "user": p_id,
                     "cartas": [carta_a_dict(c) for c in mano],
                     "puntuacion_tupla": (puntos, kickers),
-                    "puntuacion": puntos
+                    "mano": nombre_jugada(puntos)
                 })
         
         # Ordenar y buscar empates 
@@ -258,7 +259,7 @@ async def resolver_showdown_poker(session, ganadores_por_abandono):
         ganadores = [r for r in resultados if r["puntuacion_tupla"] == mejor_tupla]
         
         bote_por_ganador = bote // len(ganadores)
-        ids_ganadores = [g["usuario_id"] for g in ganadores]
+        ids_ganadores = [g["user"] for g in ganadores]
         
         for g_id in ids_ganadores:
             session.board_state["balances"][g_id] += bote_por_ganador
@@ -311,10 +312,10 @@ async def finalizar_minijuego_poker(session):
     for i, p_id in enumerate(jugadores_ids):
         puntos, kickers = evaluar_jugada(manos[i] + mesa)
         resultados_jugadores.append({
-            "usuario_id": p_id,
+            "user": p_id,
             "cartas": [carta_a_dict(c) for c in manos[i]],
             "puntuacion_tupla": (puntos, kickers),
-            "puntuacion": puntos
+            "mano": nombre_jugada(puntos)
         })
         
     # Ordenamos usando la tupla (Puntos de jugada + Kickers de desempate)
@@ -326,7 +327,7 @@ async def finalizar_minijuego_poker(session):
     
     # Dividimos el bote entre los empatados
     bote_por_ganador = bote_total // len(ganadores)
-    ids_ganadores = [g["usuario_id"] for g in ganadores]
+    ids_ganadores = [g["user"] for g in ganadores]
     
     for r in resultados_jugadores:
         del r["puntuacion_tupla"]
@@ -406,6 +407,14 @@ def puntuar_poker(mano_str):
         "escalera de color": 9, "escalera real": 10
     }
     return puntuaciones.get(mano_str, 0)
+
+def nombre_jugada(puntos):
+    nombres = {
+        1: "carta alta", 2: "pareja", 3: "doble pareja", 4: "trio",
+        5: "escalera", 6: "color", 7: "full house", 8: "poker",
+        9: "escalera de color", 10: "escalera real"
+    }
+    return nombres.get(puntos, "desconocida")
 
 # La idea es llamar a este vector con las dos cartas de cada jugador más las cartas de la mesa, todas ya indexadas en el vector
 def evaluar_jugada(mano):
