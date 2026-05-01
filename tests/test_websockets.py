@@ -207,11 +207,6 @@ def test_ws_accion_comprar_objeto(partida_en_espera):
 
         respuesta_saldo = esperar_evento(ws1, "balances_changed")
         assert respuesta_saldo["balances"]["Edu1"] == 0
-
-        respuesta_inventario = esperar_evento(ws1, "inventory_updated")
-        assert respuesta_inventario["user"] == "Edu1"
-        assert respuesta_inventario["objeto_obtenido"] == "Avanzar Casillas"
-        assert "Avanzar Casillas" in respuesta_inventario["inventario_actual"]
     
 
 
@@ -230,17 +225,23 @@ def test_ws_accion_fin_de_turno(partida_en_espera2): # <--- Usa la fixture
             for n in jugadores
         ]
         
-        # Inicializamos lo necesario para el test
-        ws1 = websockets[0]
-        ws1.send_json({"action": "end_round"})
+        # Ambos terminan ronda
+        for ws in websockets:
+            ws.send_json({"action": "end_round"})
         
-        respuesta = esperar_evento(ws1, "turn_changed")
-        assert sesion.board_state["turn"] == "Aritz2"
+        # Al terminar todos, se disparan los nuevos saldos
+        respuesta = esperar_evento(websockets[0], "balances_changed")
+        assert "balances" in respuesta
+        # Verificamos que el saldo de Aritz1 haya subido (empezó en 1 + 3 = 4)
+        assert respuesta["balances"]["Aritz1"] >= 4
 
 def test_ws_penalizacion_barrera(partida_en_espera): # <--- Usa la fixture
     game_id, player_id = partida_en_espera
     
     with client.websocket_connect(f"/ws/partida/{game_id}?token={player_id}") as ws:
+        # Ignorar lobby_update inicial
+        ws.receive_json()
+        
         sesion = manager.active_games[game_id]
         
         # Inicializamos el diccionario de penalizaciones si no existe
@@ -253,6 +254,45 @@ def test_ws_penalizacion_barrera(partida_en_espera): # <--- Usa la fixture
         
         respuesta = ws.receive_json()
         assert "error" in respuesta
+
+def test_ws_ruleta_efecto_directo(partida_en_espera):
+    """
+    Verifica que la ruleta sortea premios directos y aplica sus efectos.
+    """
+    game_id, _ = partida_en_espera
+    jugadores = ["Edu1", "Edu2", "Edu3", "Edu4"]
+    
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        websockets = [
+            stack.enter_context(client.websocket_connect(f"/ws/partida/{game_id}?token={n}"))
+            for n in jugadores
+        ]
+        ws1 = websockets[0]
+        
+        # Forzamos que caiga en casilla de ruleta
+        with patch("gamemanager.obtenerTipoCasilla", return_value=("obj", "1")):
+            ws1.send_json({"action": "move_player"})
+            
+            # 1. Movimiento inicial por dados
+            esperar_evento(ws1, "player_moved")
+            # 2. Tipo de casilla
+            esperar_evento(ws1, "tipo_casilla")
+            
+            # 3. Resultado de la ruleta
+            respuesta_ruleta = esperar_evento(ws1, "obtener_objeto")
+            assert "objeto" in respuesta_ruleta
+            premio = respuesta_ruleta["objeto"]
+            assert premio in ["+3 Casillas", "-3 Casillas", "+3 Monedas", "-3 Monedas"]
+            
+            # 4. Verificación del efecto inmediato
+            if "Casillas" in premio:
+                resp_efecto = esperar_evento(ws1, "player_moved")
+                assert "nueva_casilla" in resp_efecto
+            else:
+                resp_efecto = esperar_evento(ws1, "balances_changed")
+                assert "balances" in resp_efecto
+
 
 # ==============================================================================
 # TESTS DE WEBSOCKETS SESION

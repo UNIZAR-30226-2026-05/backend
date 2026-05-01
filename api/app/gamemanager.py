@@ -15,7 +15,7 @@ import random
 import asyncio
 from logicaMinijuegos import *
 
-MAX_JUGADORES = 2
+MAX_JUGADORES = 4
 META = 71
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
@@ -124,7 +124,6 @@ class GameManager:
             session.board_state["characters"] = {} # Personaje para cada jugador
             session.board_state["turns"] = {} # Ronda en la que nos encontramos
             session.board_state["order"] = {} # Orden de tirada para cada ronda
-            session.board_state["inventory"] = {} # Objetos que han adquirido los usuarios
             session.board_state["penalty_turns"] = {} # Turnos de penalización que le quedan a cada jugador por caer en casillas de barrera
             
         if player_id not in session.board_state["positions"]:
@@ -132,7 +131,6 @@ class GameManager:
                     session.board_state["balances"][player_id] = 1
                     session.board_state["turns"][player_id] = 1
                     session.board_state["order"][player_id] = len(session.players)
-                    session.board_state["inventory"][player_id] = [] # Cuando se une un usuario no tiene objetos
                     session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
 
         if reconnect:
@@ -184,7 +182,6 @@ class GameManager:
                     del session.board_state["positions"][player_id]
                     del session.board_state["balances"][player_id]
                     del session.board_state["turns"][player_id]
-                    del session.board_state["inventory"][player_id]
                     del session.board_state["penalty_turns"][player_id]
                     del session.penalizacion_pendiente[player_id]
                     
@@ -387,14 +384,47 @@ class GameManager:
 
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
-                    if extra == '1':   # Tenemos que sortear un objeto aleatorio para el jugador
-                        objeto = obtener_objeto_aleatorio()
+                    if extra == '1':   # Sorteo de efecto de ruleta
+                        premios = ["+3 Casillas", "-3 Casillas", "+3 Monedas", "-3 Monedas"]
+                        premio = random.choice(premios)
+                        
                         await session.broadcast({
                             "type": "obtener_objeto",
                             "user": user,
-                            "objeto": objeto["nombre"],
-                            "descripcion": objeto["descripcion"]
+                            "objeto": premio
                         })
+
+                        # Aplicar el efecto inmediatamente
+                        if premio == "+3 Casillas":
+                            nueva_pos = min(session.board_state["positions"][user] + 3, META)
+                            session.board_state["positions"][user] = nueva_pos
+                            actualizar_casilla(game_id, user, nueva_pos)
+                            await session.broadcast({
+                                "type": "player_moved",
+                                "user": user,
+                                "nueva_casilla": nueva_pos
+                            })
+                        elif premio == "-3 Casillas":
+                            nueva_pos = max(session.board_state["positions"][user] - 3, 0)
+                            session.board_state["positions"][user] = nueva_pos
+                            actualizar_casilla(game_id, user, nueva_pos)
+                            await session.broadcast({
+                                "type": "player_moved",
+                                "user": user,
+                                "nueva_casilla": nueva_pos
+                            })
+                        elif premio == "+3 Monedas":
+                            session.board_state["balances"][user] += 3
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
+                        elif premio == "-3 Monedas":
+                            session.board_state["balances"][user] = max(session.board_state["balances"][user] - 3, 0)
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
 
                     else:  # Intercambiamos posición con otro jugador aleatorio
                         jugadores_disponibles = [p_id for p_id in session.players.keys() if p_id != user and session.players[p_id] is not None]
@@ -619,19 +649,7 @@ class GameManager:
                 if len(session.poker_respuestas_fase) == len(session.poker_activos):
                     await avanzar_fase_poker(session)     
 
-            case "anyadir_objeto":
-                nombre_objeto = payload["objeto"]
-                
-                # Metemos el objeto en el inventario del jugador
-                session.board_state["inventory"][user].append(nombre_objeto)
-                
-                # Avisamos a todos 
-                await session.broadcast({
-                    "type": "inventory_updated",
-                    "user": user,
-                    "objeto_obtenido": nombre_objeto,
-                    "inventario_actual": session.board_state["inventory"][user]
-                })
+
                     
             case "comprar_objeto":
                 nombre_objeto = payload["objeto"]
@@ -669,18 +687,10 @@ class GameManager:
                 if saldo_actual >= precio:
 
                     session.board_state["balances"][user] -= precio
-                    session.board_state["inventory"][user].append(nombre_objeto)
                     
                     await session.broadcast({
                         "type": "balances_changed",
                         "balances": session.board_state["balances"]
-                    })
-
-                    await session.broadcast({
-                        "type": "inventory_updated",
-                        "user": user,
-                        "objeto_obtenido": nombre_objeto,
-                        "inventario_actual": session.board_state["inventory"][user]
                     })
                     
                 else:
@@ -708,17 +718,7 @@ class GameManager:
                     })
                     return
 
-                # Comprobar si tiene el objeto que quiere usar
-                inventario_jugador = session.board_state["inventory"].get(user, [])
-                
-                if nombre_objeto not in inventario_jugador:
-                    await session.players[user].send_json({
-                        "error": f"No tienes el objeto '{nombre_objeto}' en tu inventario."
-                    })
-                    return
 
-                # Gastar objeto (solo borra una unidad si tiene varios iguales)
-                session.board_state["inventory"][user].remove(nombre_objeto)
 
                 # -EFECTO DEL OBJETO:
                 
@@ -796,12 +796,11 @@ class GameManager:
                             "message": "Salvavidas usado para eliminar penalización de barrera"
                         })
 
-                # Avisar de que se ha usado un objeto y de la acutalización del inventario
+                # Avisar de que se ha usado un objeto
                 await session.broadcast({
                     "type": "objeto_usado",
                     "user": user,
-                    "objeto": nombre_objeto,
-                    "inventario_actual": session.board_state["inventory"][user],
+                    "objeto": nombre_objeto
                 })
 
 manager = GameManager()
