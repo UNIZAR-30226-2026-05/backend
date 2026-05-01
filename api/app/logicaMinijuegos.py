@@ -139,6 +139,8 @@ async def iniciar_poker_real(session):
     session.poker_bote = 0
     session.poker_activos = list(jugadores_ids)
     session.poker_respuestas_fase = {}
+    session.poker_apuesta_actual = 0
+    session.poker_apuestas_acumuladas = {}
 
     # Enviamos a cada jugador sus cartas y les pedimos su primera acción (Pre-flop)
     for i, p_id in enumerate(jugadores_ids):
@@ -152,16 +154,19 @@ async def iniciar_poker_real(session):
             })
 
 async def avanzar_fase_poker(session):
-    # Procesar las respuestas de la fase actual
+    # 1. Procesar quién se ha retirado
     for p_id, datos in session.poker_respuestas_fase.items():
         if datos["decision"] == "retirarse":
             session.poker_activos.remove(p_id)
-        elif datos["decision"] == "apostar":
-            apuesta = datos["cantidad"]
-            session.board_state["balances"][p_id] -= apuesta
-            session.poker_bote += apuesta
+            
+    # 2. Cobrar las apuestas acumuladas en la fase (incluso a los que acaban de retirarse)
+    for p_id, apuesta in session.poker_apuestas_acumuladas.items():
+        session.board_state["balances"][p_id] -= apuesta
+        session.poker_bote += apuesta
 
     session.poker_respuestas_fase = {} # Limpiamos para la siguiente ronda
+    session.poker_apuesta_actual = 0
+    session.poker_apuestas_acumuladas = {}
 
     # Avisamos de los nuevos saldos y el bote actualizado
     await session.broadcast({
@@ -280,6 +285,8 @@ async def resolver_showdown_poker(session, ganadores_por_abandono):
     session.poker_bote = 0
     session.poker_activos = []
     session.poker_respuestas_fase = {}
+    session.poker_apuesta_actual = 0
+    session.poker_apuestas_acumuladas = {}
     session.minijuego_detalles = {}
 
 async def finalizar_minijuego_poker(session):
@@ -382,6 +389,8 @@ async def finalizar_minijuego_poker(session):
     session.minijuego_participantes = []
     session.minijuego_tipo = None
     session.minijuego_detalles = {}
+    session.poker_apuesta_actual = 0
+    session.poker_apuestas_acumuladas = {}
 
 # Dado un indice devuelve la tupla de la carta correspondiente en la baraja. Ej: 0 -> ('as', 'picas'), 51 -> ('rey', 'diamantes')
 def indexar_carta(carta):

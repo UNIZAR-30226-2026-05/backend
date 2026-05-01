@@ -40,6 +40,8 @@ class GameSession:
             self.poker_bote = 0
             self.poker_activos = [] # Jugadores que no se han retirado
             self.poker_respuestas_fase = {} # Lo que ha hecho cada uno en la ronda actual
+            self.poker_apuesta_actual = 0 # Apuesta más alta de la fase actual
+            self.poker_apuestas_acumuladas = {} # Total apostado por cada jugador en la fase actual
 
             self.ha_movido_en_turno = False #Para saber si spuede o no usar objetos
             self.ha_caido_en_barrera = False #Para saber si puede comprar salvaidas barrera o no
@@ -637,10 +639,37 @@ class GameManager:
                     return # Si ya se retiró o no juega, ignoramos
 
                 if decision == "apostar":
-                    if cantidad < 0 or cantidad > session.board_state["balances"].get(user, 0):
+                    ya_apostado = session.poker_apuestas_acumuladas.get(user, 0)
+                    total_usuario = ya_apostado + cantidad
+                    
+                    # Verificamos si iguala la apuesta actual
+                    if total_usuario < session.poker_apuesta_actual:
+                        await session.players[user].send_json({
+                            "type": "error",
+                            "message": f"Debes igualar la apuesta actual ({session.poker_apuesta_actual}). Te faltan {session.poker_apuesta_actual - ya_apostado} monedas."
+                        })
+                        return
+
+                    if cantidad < 0 or total_usuario > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({"error": "Apuesta inválida o saldo insuficiente."})
                         return
-                    session.poker_respuestas_fase[user] = {"decision": "apostar", "cantidad": cantidad}
+
+                    session.poker_apuestas_acumuladas[user] = total_usuario
+                    
+                    # Si sube la apuesta, reseteamos las respuestas de los demás para que tengan que igualar
+                    if total_usuario > session.poker_apuesta_actual:
+                        session.poker_apuesta_actual = total_usuario
+                        # Mantenemos solo la respuesta del que acaba de subir
+                        session.poker_respuestas_fase = {user: {"decision": "apostar", "cantidad": total_usuario}}
+                        
+                        await session.broadcast({
+                            "type": "poker_apuesta_actualizada",
+                            "user": user,
+                            "nueva_apuesta_objetivo": total_usuario,
+                            "mensaje": f"{user} ha subido la apuesta a {total_usuario}!"
+                        })
+                    else:
+                        session.poker_respuestas_fase[user] = {"decision": "apostar", "cantidad": total_usuario}
                 
                 elif decision == "retirarse":
                     session.poker_respuestas_fase[user] = {"decision": "retirarse", "cantidad": 0}
