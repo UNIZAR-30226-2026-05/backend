@@ -58,7 +58,7 @@ async def finalizar_minijuego_orden(session):
         posicion = indice + 1
                         
         # IMPORTANTE ACTUALIZAR EL ORDEN DEL ESTADO DE LA PARTIDA
-        session.board_state["order"][posicion] = player_id
+        session.board_state["order"][player_id] = posicion
                         
     # Rellenamos resulado para este jugador
         resultados_front[player_id] = {
