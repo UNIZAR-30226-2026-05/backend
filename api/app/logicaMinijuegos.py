@@ -64,13 +64,12 @@ async def finalizar_minijuego_orden(session):
         resultados_front[player_id] = {
             "posicion": posicion,
             "score": puntuacion
-        }
-                
+        }                
 
     await session.broadcast({
-        "type": "minijuego_resultados",
-        "resultados": resultados_front,
-        "nuevo_orden": session.board_state["order"]
+        "type": "turno_de",
+        "nombre_jugador": session.board_state["order"][1],
+        "ronda": session.board_state["round"]
     })  
 
 async def finalizar_minijuego_casilla(session):

@@ -28,8 +28,7 @@ class GameSession:
             self.status = "WAITING"
             self.board_state = {}
             self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
-            self.players_en_fin_ronda = 0       # Jugadores que han acabado la ronda
-            
+            self.players_id = []
             # Minijuegos
             self.minijuego_actual = None
             self.minijuego_tipo = None  # "orden" o "casilla" 
@@ -43,8 +42,6 @@ class GameSession:
             self.poker_apuesta_actual = 0 # Apuesta más alta de la fase actual
             self.poker_apuestas_acumuladas = {} # Total apostado por cada jugador en la fase actual
 
-            self.ha_movido_en_turno = False #Para saber si spuede o no usar objetos
-            self.ha_caido_en_barrera = False #Para saber si puede comprar salvaidas barrera o no
             self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
             self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
 
@@ -92,6 +89,8 @@ class GameManager:
 
         session = self.active_games[game_id]
 
+        session.players_id.append(player_id)
+
         reconnect = player_id in session.players
 
         # Verificar que el usuario no esta conectado desde otro dispositvo
@@ -99,7 +98,8 @@ class GameManager:
         if reconnect:
             old_socket = session.players[player_id]
             if old_socket is not None:
-                try:
+                try:            
+
                     await old_socket.send_json({
                         "type": "force_disconnect",
                         "message": "Nueva conexion desde otro dispositivo"
@@ -124,15 +124,15 @@ class GameManager:
             session.board_state["positions"] = {} # Casilla en la que está cada jugador
             session.board_state["balances"] = {} # Dinero que le queda a cada jugador
             session.board_state["characters"] = {} # Personaje para cada jugador
-            session.board_state["turns"] = {} # Ronda en la que nos encontramos
+            session.board_state["round"] = 1 # Ronda en la que nos encontramos
             session.board_state["order"] = {} # Orden de tirada para cada ronda
             session.board_state["penalty_turns"] = {} # Turnos de penalización que le quedan a cada jugador por caer en casillas de barrera
+            session.board_state["turn"] = 1     # guarda el turno en el que nos encontramos en la ronda
             
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
                     session.board_state["balances"][player_id] = 1
-                    session.board_state["turns"][player_id] = 1
-                    session.board_state["order"][player_id] = len(session.players)
+                    session.board_state["order"][len(session.players)] = player_id
                     session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
 
         if reconnect:
@@ -462,81 +462,14 @@ class GameManager:
                     if session.board_state["characters"].get(user) == "Escapista":   # Si el jugador es el escapista, solo pierde 1 turno
                         extra -= 1
 
-                    session.board_state["penalty_turns"][user] = extra   # El jugador pierde turnos
-                    session.ha_caido_en_barrera = True   # Marcamos que ha caído en barrera para que en el proceso de fin de ronda se le reste un turno y se le quite la penalización cuando llegue a 0
-                    # Avisamos a todos de la penalización
-                    await session.broadcast({
-                        "type": "penalizacion_actualizada",
-                        "user": user,
-                        "penalizacion": session.board_state["penalty_turns"][user]
-                    })
-
-            case "end_round":
-                # Si el jugador no se ha movido (ha saltado turno), avisamos a todos para evitar bloqueos
-                if not getattr(session, "ha_movido_en_turno", False):
-                    await session.broadcast({"type": "turn_skipped", "user": user})
-
-                # Si no ha caído en barrera en este turno y tiene penalización pendiente, restamos 1
-                if not session.ha_caido_en_barrera and session.board_state["penalty_turns"].get(user, 0) > 0:
-                    session.board_state["penalty_turns"][user] -= 1
+                    session.penalizacion_pendiente += extra   # El jugador pierde turnos
                     await session.broadcast({
                         "type": "penalizacion_actualizada",
                         "user": user,
                         "penalizacion": session.board_state["penalty_turns"][user]
                     })
                 
-                session.board_state["penalty_turns"][user] += session.penalizacion_pendiente.get(user, 0)
-
-                session.ha_movido_en_turno = False
-                session.ha_caido_en_barrera = False
-                session.avance_extra = 0
-
-                session.penalizacion_pendiente[user] = 0
-
-                session.players_en_fin_ronda += 1
-
-                # Si los 4 han acabado la ronda lanzar dados y avisar al visionario
-                if session.players_en_fin_ronda == MAX_JUGADORES:
-                    session.players_en_fin_ronda = 0
-                    
-                    session.dados["izq"] = []
-                    session.dados["der"] = []
-                    sumas = []
-                    for i in range(4):
-
-                        dadoizq, dadoder, _ = tirarDados(i + 1)  # hacer 4 tiradas y guardarlas
-                        session.dados["izq"].append(dadoizq)
-                        session.dados["der"].append(dadoder)
-                        sumas.append(dadoizq + dadoder)
-
-                    for p_id in session.board_state["turns"]:
-                        session.board_state["turns"][p_id] += 1
-                        session.board_state["balances"][p_id] += 3
-
-                    # Aviso de las monedas
-                    await session.broadcast({
-                        "type": "balances_changed",
-                        "balances": session.board_state["balances"]
-                    })
-
-                    # Avisamos al visionario
-                    for p_id, personaje in session.board_state["characters"].items():
-                        if personaje == "Vidente":
-                            await session.players.get(p_id).send_json({
-                                "type": "dice_shown",
-                                "punt": sumas
-                            })
-                        
-                        if personaje == "Videojugador":
-                            minijuegos = listar_minijuegos_eleccion()
-                            dos_minijuegos = random.sample(minijuegos, 2)
-
-                            await session.players.get(p_id).send_json({
-                                "type": "choose_minijuego",
-                                "minijuegos": dos_minijuegos
-                            })
-                
-            case "ini_round":
+            case "select_mini":
                 if session.board_state["characters"].get(user) == "Videojugador":   # Si el user es el videojugador, iniciamos minijuego
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
@@ -573,14 +506,14 @@ class GameManager:
             case "banquero":
                 if session.board_state["characters"].get(user) == "Banquero":
                     # Obtenemos el orden del jugador para esta ronda
-                    orden = session.board_state["order"].get(user)
+                    playerId = session.board_state
+                    orden = session.board_state["order"]
 
                     if orden is None:
                         return
 
                     # A quién le toca tirar ahora
-                    turno_actual = session.players_en_fin_ronda + 1
-
+                    
                     if orden != turno_actual:
                         await session.players[user].send_json({
                             "error": f"No es tu turno. Le toca al jugador {turno_actual}"
@@ -630,7 +563,7 @@ class GameManager:
                         session.minijuego_scores[user] = score
                 else:
                     session.minijuego_scores[user] = score
-
+                
                 # Comprobamos si todos los que debían jugar han terminado
                 if all(p in session.minijuego_scores for p in session.minijuego_participantes):
                     await resolver_minijuego(session)
@@ -778,25 +711,13 @@ class GameManager:
                         return
                     
                     else:   # Tenemos que comprobar si el objetivo ha tirado o no ha tirado, en el segundo caso nos guardamos la penalización
-                        orden_tirada = session.board_state["order"].get(user)
-                        orden_objetivo = session.board_state["order"].get(objetivo)
-                        if orden_tirada > orden_objetivo:   # El objetivo ya ha tirado (orden menor), aplicamos penalización
-                            session.board_state["penalty_turns"][objetivo] += 1
-
-                            await session.broadcast({
-                                "type": "penalizacion_anyadida",
-                                "user": objetivo,
-                                "message": f"Pierdes un turno"
-                            })
-
-                        else:   # El objetivo no ha tirado, añadimos uno a los turnos de penalización pendientes
-                            session.penalizacion_pendiente[objetivo] += 1
+                        session.penalizacion_pendiente[objetivo] += 1
                             
-                            await session.broadcast({
-                                "type": "penalizacion_anyadida",
-                                "user": objetivo,
-                                "message": f"Perderás un turno en cuanto termines de tirar los dados"
-                            })
+                        await session.broadcast({
+                            "type": "penalizacion_anyadida",
+                            "user": objetivo,
+                            "message": f"Perderás un turno en cuanto termines de tirar los dados"
+                        })
 
                 elif nombre_objeto in ["Salvavidas", "Salvavidas bloqueo"]:
                     if session.board_state["penalty_turns"][user] > 0:   # Solo se puede usar si tiene penalización
@@ -813,6 +734,70 @@ class GameManager:
                     "user": user,
                     "objeto": nombre_objeto
                 })
+            
+            case "fin_turno":
+                if session.board_state["turn"] == session.players:
+                    session.board_state["turn"] = 1
+                    session.board_state["round"] += 1 
+
+                    session.dados["izq"] = []
+                    session.dados["der"] = []
+                    sumas = []
+                    for i in range(4):
+
+                        dadoizq, dadoder, _ = tirarDados(i + 1)  # hacer 4 tiradas y guardarlas
+                        session.dados["izq"].append(dadoizq)
+                        session.dados["der"].append(dadoder)
+                        sumas.append(dadoizq + dadoder)
+
+                    for p_id in session.players_id:
+                        session.board_state["balances"][p_id] += 3
+
+                    # Aviso de las monedas
+                    await session.broadcast({
+                        "type": "balances_changed",
+                        "balances": session.board_state["balances"]
+                    })
+
+                    # Avisamos al visionario
+                    for p_id, personaje in session.board_state["characters"].items():
+                        if personaje == "Vidente":
+                            await session.players.get(p_id).send_json({
+                                "type": "dice_shown",
+                                "punt": sumas
+                            })
+                        
+                        if personaje == "Videojugador":
+                            minijuegos = listar_minijuegos_eleccion()
+                            dos_minijuegos = random.sample(minijuegos, 2)
+
+                            await session.players.get(p_id).send_json({
+                                "type": "choose_minijuego",
+                                "minijuegos": dos_minijuegos
+                            })
+                
+                session.board_state["turn"] += 1
+                turno_actual = session.board_state["turn"]
+                playerId = session.board_state["order"][turno_actual]
+                if  session.players[payerId] is not None:
+                    
+                    penalizaciones = session.board_state["penalty_turns"][playerId]
+                    if penalizaciones > 0:
+                        session.board_state["penalty_turns"][playerId] -= 1
+                        await session.broadcast({
+                            "type": "penalizacion_actualizada",
+                            "user": user,
+                            "penalizacion": session.board_state["penalty_turns"][user]
+                        })
+                        session.board_state["penalty_turns"][playerId] += session.penalizacion_pendiente
+                    else:
+
+                        await session.broadcast({
+                            "type": "turno_de",
+                            "nombre_jugador": session.board_state["order"][turno_actual],
+                            "ronda": session.board_state["round"]
+                        }) 
+        
                     
                 
                 
