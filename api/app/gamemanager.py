@@ -754,9 +754,9 @@ class GameManager:
                     session.dados["izq"] = []
                     session.dados["der"] = []
                     sumas = []
-                    for i in range(4):
+                    for i in range(len(session.players)):
 
-                        dadoizq, dadoder, _ = tirarDados(i + 1)  # hacer 4 tiradas y guardarlas
+                        dadoizq, dadoder, _ = tirarDados(i + 1)  # hacer tiradas y guardarlas
                         session.dados["izq"].append(dadoizq)
                         session.dados["der"].append(dadoder)
                         sumas.append(dadoizq + dadoder)
@@ -764,10 +764,15 @@ class GameManager:
                     for p_id in session.players_id:
                         session.board_state["balances"][p_id] += 3
 
-                    # Aviso de las monedas
+                    # Aviso de las monedas y fin de ronda
                     await session.broadcast({
                         "type": "balances_changed",
                         "balances": session.board_state["balances"]
+                    })
+                    
+                    await session.broadcast({
+                        "type": "round_ended",
+                        "round": session.board_state["round"]
                     })
 
                     # Avisamos al visionario
@@ -786,30 +791,34 @@ class GameManager:
                                 "type": "choose_minijuego",
                                 "minijuegos": dos_minijuegos
                             })
-                
-                session.board_state["turn"] += 1
-                session.ha_movido_en_turno = False
-                session.avance_extra = 0
+                else:
+                    # Solo avanzamos el turno si NO es fin de ronda
+                    # El fin de ronda lo gestiona el minijuego de orden al terminar
+                    session.board_state["turn"] += 1
+                    session.ha_movido_en_turno = False
+                    session.avance_extra = 0
 
-                turno_actual = session.board_state["turn"]
-                playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
-                if playerId and session.players.get(playerId) is not None:
+                    turno_actual = session.board_state["turn"]
+                    # Buscar al jugador que tiene este turno (búsqueda por valor en {id: pos})
+                    playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
                     
-                    penalizaciones = session.board_state["penalty_turns"][playerId]
-                    if penalizaciones > 0:
-                        session.board_state["penalty_turns"][playerId] -= 1
-                        await session.broadcast({
-                            "type": "penalizacion_actualizada",
-                            "user": playerId,
-                            "penalizacion": session.board_state["penalty_turns"][playerId]
-                        })
-                    else:
-
-                        await session.broadcast({
-                            "type": "turno_de",
-                            "nombre_jugador": playerId,
-                            "ronda": session.board_state["round"]
-                        }) 
+                    if playerId and session.players.get(playerId) is not None:
+                        penalizaciones = session.board_state["penalty_turns"].get(playerId, 0)
+                        if penalizaciones > 0:
+                            session.board_state["penalty_turns"][playerId] -= 1
+                            await session.broadcast({
+                                "type": "penalizacion_actualizada",
+                                "user": playerId,
+                                "penalizacion": session.board_state["penalty_turns"][playerId]
+                            })
+                            # Auto-enviar fin_turno recursivamente para saltar al siguiente? 
+                            # Mejor que el cliente lo gestione o hacerlo aquí
+                        else:
+                            await session.broadcast({
+                                "type": "turno_de",
+                                "nombre_jugador": playerId,
+                                "ronda": session.board_state["round"]
+                            }) 
         
                     
                 
