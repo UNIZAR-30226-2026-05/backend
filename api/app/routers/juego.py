@@ -286,3 +286,28 @@ def get_precio_objeto(nombre: str):
     if precio is None:
         raise HTTPException(status_code=404, detail="Objeto no encontrado")
     return precio
+
+def obtener_obj_ruleta():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        query = "SELECT nombre FROM JUEGO.OBJ_RULETA"
+        cursor.execute(query,(minijuego,))
+
+        resultado = cursor.fetcall()
+
+        return [fila[0] for fila in resultado]
+    
+    except psycopg2.IntegrityError as e:
+        conn.rollback() 
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
+        

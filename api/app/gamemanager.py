@@ -387,7 +387,7 @@ class GameManager:
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
                     if extra == '1':   # Sorteo de efecto de ruleta
-                        premios = ["+3 Casillas", "-3 Casillas", "+3 Monedas", "-3 Monedas"]
+                        premios = obtener_obj_ruleta()
                         premio = random.choice(premios)
                         
                         await session.broadcast({

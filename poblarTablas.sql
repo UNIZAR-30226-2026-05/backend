@@ -26,9 +26,10 @@ VALUES
 
 InSERT INTO JUEGO.OBJETO_RULETA(nombre)
 VALUES
-    ('Avanzar Casillas'),
-    ('Mejorar Dados'),
-    ('Barrera');
+    ('+3 Casillas'),
+    ('-3 Casillas'),
+    ('+3 Monedas'),
+    ('-3 Monedas');
 
 INSERT INTO JUEGO.MINIJUEGO(nombre)
 VALUES
