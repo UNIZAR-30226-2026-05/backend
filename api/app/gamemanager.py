@@ -132,7 +132,7 @@ class GameManager:
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
                     session.board_state["balances"][player_id] = 1
-                    session.board_state["order"][len(session.players)] = player_id
+                    session.board_state["order"][player_id] = len(session.players)
                     session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
 
         if reconnect:
@@ -778,23 +778,22 @@ class GameManager:
                 
                 session.board_state["turn"] += 1
                 turno_actual = session.board_state["turn"]
-                playerId = session.board_state["order"][turno_actual]
-                if  session.players[payerId] is not None:
+                playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
+                if playerId and session.players.get(playerId) is not None:
                     
                     penalizaciones = session.board_state["penalty_turns"][playerId]
                     if penalizaciones > 0:
                         session.board_state["penalty_turns"][playerId] -= 1
                         await session.broadcast({
                             "type": "penalizacion_actualizada",
-                            "user": user,
-                            "penalizacion": session.board_state["penalty_turns"][user]
+                            "user": playerId,
+                            "penalizacion": session.board_state["penalty_turns"][playerId]
                         })
-                        session.board_state["penalty_turns"][playerId] += session.penalizacion_pendiente
                     else:
 
                         await session.broadcast({
                             "type": "turno_de",
-                            "nombre_jugador": session.board_state["order"][turno_actual],
+                            "nombre_jugador": playerId,
                             "ronda": session.board_state["round"]
                         }) 
         

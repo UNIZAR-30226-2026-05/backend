@@ -68,7 +68,7 @@ async def finalizar_minijuego_orden(session):
 
     await session.broadcast({
         "type": "turno_de",
-        "nombre_jugador": session.board_state["order"][1],
+        "nombre_jugador": next((p_id for p_id, pos in session.board_state["order"].items() if pos == 1), ""),
         "ronda": session.board_state["round"]
     })  
 
