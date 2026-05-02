@@ -393,7 +393,8 @@ class GameManager:
                         await session.broadcast({
                             "type": "obtener_objeto",
                             "user": user,
-                            "objeto": premio
+                            "objeto": premio,
+                            "descripcion": f"Has obtenido: {premio}"
                         })
 
                         # Aplicar el efecto inmediatamente

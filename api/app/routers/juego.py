@@ -293,9 +293,9 @@ def obtener_obj_ruleta():
 
     try:
         query = "SELECT nombre FROM JUEGO.OBJ_RULETA"
-        cursor.execute(query,(minijuego,))
+        cursor.execute(query)
 
-        resultado = cursor.fetcall()
+        resultado = cursor.fetchall()
 
         return [fila[0] for fila in resultado]
     
