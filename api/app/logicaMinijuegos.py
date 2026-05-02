@@ -99,6 +99,13 @@ async def finalizar_minijuego_dilemaPrisionero(session):
     for p_id, monto in recompensa.items():
         session.board_state["balances"][p_id] += monto
 
+    # Enviamos los resultados detallados antes de cerrar para que el frontend los muestre
+    await session.broadcast({
+        "type": "dilema_resultados",
+        "decisiones": {p1: d1, p2: d2},
+        "recompensas": recompensa
+    })
+
     # Enviamos un solo mensaje con el cambio de monedas
     await session.broadcast({
         "type": "balances_changed",
