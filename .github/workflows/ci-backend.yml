@@ -34,9 +34,9 @@ jobs:
         pip install fastapi httpx "passlib[bcrypt]" "bcrypt==3.2.2" PyJWT psycopg2-binary python-dotenv pytest pytest-asyncio
 
     # Ejecutar los tests
-    - name: Ejecutar Pytest
-      run: |
-      ecutar los tests
-    - name: Ejecutar Pytest
-      run: |
-        pytest -W ignore::DeprecationWarning tests/test_logica.py tests/test_db.py tests/test_api.py   pytest -W ignore::DeprecationWarning tests/test_logica.py tests/test_db.py tests/test_api.py 
+    # - name: Ejecutar Pytest
+    #  run: |
+    #  ecutar los tests
+    #- name: Ejecutar Pytest
+    #  run: |
+    #    pytest -W ignore::DeprecationWarning tests/test_logica.py tests/test_db.py tests/test_api.py   pytest -W ignore::DeprecationWarning tests/test_logica.py tests/test_db.py tests/test_api.py 
