@@ -464,17 +464,21 @@ class GameManager:
                     session.board_state["penalty_turns"][user] = extra   # El jugador pierde turnos
                     session.ha_caido_en_barrera = True   # Marcamos que ha caído en barrera para que en el proceso de fin de ronda se le reste un turno y se le quite la penalización cuando llegue a 0
                     # Avisamos a todos de la penalización
-                    session.broadcast({
+                    await session.broadcast({
                         "type": "penalizacion_actualizada",
                         "user": user,
                         "penalizacion": session.board_state["penalty_turns"][user]
                     })
 
             case "end_round":
+                # Si el jugador no se ha movido (ha saltado turno), avisamos a todos para evitar bloqueos
+                if not getattr(session, "ha_movido_en_turno", False):
+                    await session.broadcast({"type": "turn_skipped", "user": user})
+
                 # Si no ha caído en barrera en este turno y tiene penalización pendiente, restamos 1
                 if not session.ha_caido_en_barrera and session.board_state["penalty_turns"].get(user, 0) > 0:
                     session.board_state["penalty_turns"][user] -= 1
-                    session.broadcast({
+                    await session.broadcast({
                         "type": "penalizacion_actualizada",
                         "user": user,
                         "penalizacion": session.board_state["penalty_turns"][user]
@@ -793,7 +797,7 @@ class GameManager:
                                 "message": f"Perderás un turno en cuanto termines de tirar los dados"
                             })
 
-                elif nombre_objeto == "Salvavidas bloqueo":
+                elif nombre_objeto in ["Salvavidas", "Salvavidas bloqueo"]:
                     if session.board_state["penalty_turns"][user] > 0:   # Solo se puede usar si tiene penalización
                         session.board_state["penalty_turns"][user] = 0
                         await session.broadcast({
