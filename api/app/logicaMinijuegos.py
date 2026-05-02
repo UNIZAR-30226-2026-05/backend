@@ -59,15 +59,18 @@ async def finalizar_minijuego_orden(session):
                         
         # IMPORTANTE ACTUALIZAR EL ORDEN DEL ESTADO DE LA PARTIDA
         session.board_state["order"][player_id] = posicion
-
-    session.board_state["turn"] = 1
-
-                        
-    # Rellenamos resulado para este jugador
         resultados_front[player_id] = {
             "posicion": posicion,
             "score": puntuacion
-        }                
+        }
+
+
+    session.board_state["turn"] = 1
+
+    await session.broadcast({
+        "type": "minijuego_resultados",
+        "resultados": resultados_front
+    })
 
     await session.broadcast({
         "type": "turno_de",
