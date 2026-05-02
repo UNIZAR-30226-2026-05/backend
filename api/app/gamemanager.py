@@ -786,7 +786,7 @@ class GameManager:
                         })
                         return
 
-                    if objetivo not in session.players[user].keys():
+                    if objetivo not in session.players.keys():
                         await session.players[user].send_json({
                             "error": "El objetivo especificado no es válido."
                         })
