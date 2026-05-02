@@ -44,6 +44,8 @@ class GameSession:
 
             self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
             self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
+            self.ha_movido_en_turno = False # Flag para saber si el jugador ya ha tirado los dados en su turno
+
 
         @property
         def is_full(self):
@@ -251,6 +253,15 @@ class GameManager:
                             "message": "Fin de elección de personajes"
                         })
 
+                        # Iniciamos el primer turno (el jugador con posición 1)
+                        first_player = next((p_id for p_id, pos in session.board_state["order"].items() if pos == 1), None)
+                        if first_player:
+                            await session.broadcast({
+                                "type": "turno_de",
+                                "nombre_jugador": first_player,
+                                "ronda": session.board_state["round"]
+                            })
+
             case "move_player":
                 # Obtenemos el orden del jugador para esta ronda
                 orden = session.board_state["order"].get(user)
@@ -266,7 +277,7 @@ class GameManager:
                     return
 
                 # A quién le toca tirar ahora
-                turno_actual = session.players_en_fin_ronda + 1
+                turno_actual = session.board_state["turn"]
 
                 if orden != turno_actual:
                     await session.players[user].send_json({
@@ -623,7 +634,7 @@ class GameManager:
                 
                 # Comprobar que es su turno
                 orden = session.board_state["order"].get(user)
-                turno_actual = session.players_en_fin_ronda + 1
+                turno_actual = session.board_state["turn"]
                 
                 if orden != turno_actual:
                     await session.players[user].send_json({
@@ -736,8 +747,8 @@ class GameManager:
                 })
             
             case "fin_turno":
-                if session.board_state["turn"] == session.players:
-                    session.board_state["turn"] = 1
+                if session.board_state["turn"] == len(session.players):
+                    session.board_state["turn"] = 0 # Lo ponemos a 0 para que al sumarle 1 después sea 1
                     session.board_state["round"] += 1 
 
                     session.dados["izq"] = []
@@ -777,6 +788,9 @@ class GameManager:
                             })
                 
                 session.board_state["turn"] += 1
+                session.ha_movido_en_turno = False
+                session.avance_extra = 0
+
                 turno_actual = session.board_state["turn"]
                 playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
                 if playerId and session.players.get(playerId) is not None:
