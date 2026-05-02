@@ -162,10 +162,10 @@ async def test_finalizar_minijuego_orden_menor_tiempo():
     await finalizar_minijuego_orden(session)
     
     # Validación de las posiciones asignadas en el estado global (1º a 4º)
-    assert session.board_state["order"]["Edu2"] == 1
-    assert session.board_state["order"]["Edu3"] == 2
-    assert session.board_state["order"]["Edu1"] == 3
-    assert session.board_state["order"]["Edu4"] == 4
+    assert session.board_state["order"][1] == "Edu2"
+    assert session.board_state["order"][2] == "Edu3"
+    assert session.board_state["order"][3] == "Edu1"
+    assert session.board_state["order"][4] == "Edu4"
 
 @pytest.mark.asyncio
 async def test_finalizar_minijuego_orden_mayor_valor():
@@ -179,10 +179,10 @@ async def test_finalizar_minijuego_orden_mayor_valor():
     
     await finalizar_minijuego_orden(session)
     
-    assert session.board_state["order"]["Edu2"] == 1
-    assert session.board_state["order"]["Edu4"] == 2
-    assert session.board_state["order"]["Edu1"] == 3
-    assert session.board_state["order"]["Edu3"] == 4
+    assert session.board_state["order"][1] == "Edu2"
+    assert session.board_state["order"][2] == "Edu4"
+    assert session.board_state["order"][3] == "Edu1"
+    assert session.board_state["order"][4] == "Edu3"
 
 
 # --- PRUEBAS DE MINIJUEGOS DE CASILLA (Matriz de pagos / Teoría de Juegos) ---

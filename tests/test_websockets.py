@@ -227,7 +227,7 @@ def test_ws_accion_fin_de_turno(partida_en_espera2): # <--- Usa la fixture
         
         # Ambos terminan ronda
         for ws in websockets:
-            ws.send_json({"action": "end_round"})
+            ws.send_json({"action": "fin_turno"})
         
         # Al terminar todos, se disparan los nuevos saldos
         respuesta = esperar_evento(websockets[0], "balances_changed")
