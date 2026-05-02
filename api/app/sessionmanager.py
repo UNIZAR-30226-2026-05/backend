@@ -23,7 +23,6 @@ class SessionManager:
             del self.active_users[player_id]
             if player_id in self.state_users:
                 del self.state_users[player_id]
-            # Al desconectarse, avisamos a sus amigos
             await self.broadcast_status_to_friends(player_id, "offline")
 
     async def send_personal_message(self, target_player_id: str, message: dict):

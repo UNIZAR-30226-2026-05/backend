@@ -380,7 +380,7 @@ class GameManager:
                                 await session.players[p_id].send_json({
                                     "type": "ini_minijuego",
                                     "minijuego": extra,
-                                    "descripcion": "Haz tu apuesta para el bote de la Mano de Póker."
+                                    "descripcion": "Haz tu apuesta"
                                 })
                             await iniciar_poker_real(session)
 
@@ -713,47 +713,24 @@ class GameManager:
                 #COMPROBAR SALDO Y COMPRA
                 saldo_actual = session.board_state["balances"].get(user, 0)
 
-                if saldo_actual >= precio:
-
-                    session.board_state["balances"][user] -= precio
-                    
-                    await session.broadcast({
-                        "type": "balances_changed",
-                        "balances": session.board_state["balances"]
-                    })
-                    
-                else:
+                if saldo_actual < precio:
                     await session.players[user].send_json({
                         "error": f"No tienes suficientes monedas. Cuesta {precio} y tienes {saldo_actual}."
                     })
-            
-            case "usar_objeto":
-                nombre_objeto = payload.get("objeto")
-                
-                # Comprobar turno
-                orden = session.board_state["order"].get(user)
-                turno_actual = session.players_en_fin_ronda + 1
-                
-                if orden != turno_actual:
-                    await session.players[user].send_json({
-                        "error": "No puedes usar objetos porque no es tu turno."
-                    })
-                    return
-                
-                # Comprobnar si ya se ha movido
-                if getattr(session, "ha_movido_en_turno", False):
-                    await session.players[user].send_json({
-                        "error": "Ya has tirado los dados. Los objetos se usan antes de mover."
-                    })
                     return
 
-
-
-                # -EFECTO DEL OBJETO:
+                # Tiene saldo compra y usa el objeto
+    
+                session.board_state["balances"][user] -= precio
+                
+                await session.broadcast({
+                    "type": "balances_changed",
+                    "balances": session.board_state["balances"]
+                })
                 
                 if nombre_objeto == "Avanzar Casillas":
                     session.avance_extra += 1
-                    
+                
                 elif nombre_objeto == "Mejorar Dados":
                     orden_tirada = session.board_state["order"].get(user) - 1
                     if orden_tirada != 0: # Solo si no tienes el dado de oro
@@ -831,5 +808,8 @@ class GameManager:
                     "user": user,
                     "objeto": nombre_objeto
                 })
+                    
+                
+                
 
 manager = GameManager()

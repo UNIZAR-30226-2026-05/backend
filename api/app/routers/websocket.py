@@ -75,7 +75,7 @@ async def game_endpoint(websocket: WebSocket, game_id: str, token: str):
 
 @router.websocket("/ws/usuario/{user}")
 async def active_session(websocket: WebSocket, user: str, token: str):
-    # ACEPTAMOS LA CONEXIÓN PRIMERO
+
     await websocket.accept()
 
     try:
