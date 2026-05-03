@@ -747,7 +747,7 @@ class GameManager:
                     "objeto": nombre_objeto
                 })
             
-            case "end_round":
+            case "fin_turno":
                 # Si el jugador que termina el turno estaba penalizado y no llegó a tirar,
                 # consumimos un turno de penalización aquí mismo.
                 if not session.ha_movido_en_turno and session.board_state["penalty_turns"].get(user, 0) > 0:
@@ -786,7 +786,7 @@ class GameManager:
 
                         await session.broadcast({
                             "type": "turno_de",
-                            "user": playerId,
+                            "nombre_jugador": playerId,
                             "ronda": session.board_state["round"]
                         })
                         turno_avanzado = True
