@@ -35,12 +35,8 @@ class GameSession:
             self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
             self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
             self.minijuego_participantes = [] # Para gestionar los ids que participan en el minijuego actual
-            self.poker_fase = None
-            self.poker_bote = 0
-            self.poker_activos = [] # Jugadores que no se han retirado
-            self.poker_respuestas_fase = {} # Lo que ha hecho cada uno en la ronda actual
-            self.poker_apuesta_actual = 0 # Apuesta más alta de la fase actual
-            self.poker_apuestas_acumuladas = {} # Total apostado por cada jugador en la fase actual
+            self.poker = {}
+
 
             self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
             self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
@@ -130,6 +126,12 @@ class GameManager:
             session.board_state["order"] = {} # Orden de tirada para cada ronda
             session.board_state["penalty_turns"] = {} # Turnos de penalización que le quedan a cada jugador por caer en casillas de barrera
             session.board_state["turn"] = 1     # guarda el turno en el que nos encontramos en la ronda
+
+            session.poker["fase"] = None
+            session.poker["bote"] = 0
+            session.poker["jugadores_activos"] = []
+            session.poker["apuesta_maxima_ronda"] = 0
+            session.poker["acumulado_apuestas_jugador"] = {}
             
         if player_id not in session.board_state["positions"]:
                     session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0

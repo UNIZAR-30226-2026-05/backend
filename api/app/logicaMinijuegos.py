@@ -148,9 +148,9 @@ async def iniciar_poker_real(session):
         "mesa_visible": []
     }
     
-    session.poker_fase = "pre-flop"
-    session.poker_bote = 0
-    session.poker_activos = list(jugadores_ids)
+    session.poker["fase"] = "pre-flop"
+    session.poker["bote"] = 0
+    session.poker["jugadores_activos"] = list(jugadores_ids)
     session.poker_respuestas_fase = {}
     session.poker_apuesta_actual = 0
     session.poker_apuestas_acumuladas = {}
