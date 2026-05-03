@@ -769,6 +769,8 @@ class GameManager:
                 if session.board_state["turn"] == len(session.players):
                     session.board_state["turn"] = 0 # Lo ponemos a 0 para que al sumarle 1 después sea 1
                     session.board_state["round"] += 1 
+                    session.ha_movido_en_turno = False
+                    session.ha_mejorado_dados = False
 
                     session.dados["izq"] = []
                     session.dados["der"] = []
