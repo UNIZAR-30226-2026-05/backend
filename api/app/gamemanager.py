@@ -22,46 +22,45 @@ META = 71
 # el cual se encargara de que si no existe crear uno nuevo
 
 class GameSession:
-        def __init__(self, game_id: int):
-            self.game_id = game_id
-            self.players: dict[str, WebSocket] = {}
-            self.status = "WAITING"
-            self.board_state = {}
-            self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
-            self.players_id = []
+    def __init__(self, game_id: int):
+        self.game_id = game_id
+        self.players: dict[str, WebSocket] = {}
+        self.status = "WAITING"
+        self.board_state = {}
+        self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
+        self.players_id = []
             # Minijuegos
-            self.minijuego_actual = None
-            self.minijuego_tipo = None  # "orden" o "casilla" 
-            self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
-            self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
-            self.minijuego_participantes = [] # Para gestionar los ids que participan en el minijuego actual
-            self.poker = {}
+        self.minijuego_actual = None
+        self.minijuego_tipo = None  # "orden" o "casilla" 
+        self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
+        self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
+        self.minijuego_participantes = [] # Para gestionar los ids que participan en el minijuego actual
+        self.ha_movido_en_turno = False # Flag para saber si el jugador ya ha tirado los dados en su turno
+        self.avance_extra = 0 # Para objetos como el "Avanzar Casillas"
+        self.penalizacion_pendiente = {} # Para objetos como la "Barrera"
+        self.ha_mejorado_dados = False # Para el objeto "Mejorar Dados"
+        self.poker = {} # Para el minijuego de Poker
 
 
-            self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
-            self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
-            self.ha_movido_en_turno = False # Flag para saber si el jugador ya ha tirado los dados en su turno
+    @property
+    def is_full(self):
+        return len(self.players) == MAX_JUGADORES
+    
+    async def broadcast(self, message: dict):
+        jugadores_desconectados = []
 
-
-        @property
-        def is_full(self):
-            return len(self.players) == MAX_JUGADORES
+        for player_id, ws in self.players.items():
+            if ws is not None:
+                try:
+                    await ws.send_json(message)
+                except Exception as e:
+                    # Si falla el envío (ej. WebSocketDisconnect), capturamos el error
+                    print(f"Omitiendo jugador {player_id} (desconectado): {e}")
+                    jugadores_desconectados.append(player_id)
         
-        async def broadcast (self, message: dict):
-            jugadores_desconectados = []
-
-            for player_id, ws in self.players.items():
-                if ws is not None:
-                    try:
-                        await ws.send_json(message)
-                    except Exception as e:
-                        # Si falla el envío (ej. WebSocketDisconnect), capturamos el error
-                        print(f"Omitiendo jugador {player_id} (desconectado): {e}")
-                        jugadores_desconectados.append(player_id)
-            
-            # Limpiamos a los "fantasmas" marcando su socket como None
-            for p_id in jugadores_desconectados:
-                self.players[p_id] = None
+        # Limpiamos a los "fantasmas" marcando su socket como None
+        for p_id in jugadores_desconectados:
+            self.players[p_id] = None
 
 class GameManager:
     def __init__(self):
