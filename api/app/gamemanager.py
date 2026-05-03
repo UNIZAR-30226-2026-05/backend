@@ -602,7 +602,8 @@ class GameManager:
                         })
                         return
 
-                    if cantidad < 0 or total_usuario > session.board_state["balances"].get(user, 0):
+                    apuesta_total_usuario = session.poker["apuesta_jugador_ronda"][user]
+                    if cantidad < 0 or apuesta_total_usuario > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({"error": "Apuesta inválida o saldo insuficiente."})
                         return
 
@@ -620,7 +621,7 @@ class GameManager:
                         await session.broadcast({
                             "type": "poker_apuesta",
                             "nombre_usuario": user,
-                            "apuesta": session.poker["jugador_apuesta_maxima_ronda"][user]
+                            "apuesta": session.poker["apuesta_jugador_ronda"][user]
                         })
 
                 elif decision == "pasar":
@@ -637,7 +638,7 @@ class GameManager:
                         avanzar_fase_poker(session)
                     
                 elif decision == "retirarse":
-                    session.poker["jugadores_activos"].remove(jugador_a_eliminar)             
+                    session.poker["jugadores_activos"].remove(user)             
             
                 session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
                 turno = session.poker["turno"]
