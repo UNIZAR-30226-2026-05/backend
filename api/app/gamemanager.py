@@ -788,8 +788,17 @@ class GameManager:
                         session.dados["der"].append(dadoder)
                         sumas.append(dadoizq + dadoder)
 
-                    for p_id in session.players_id:
-                        session.board_state["balances"][p_id] += 3
+                    # Protección para no premiar la misma ronda dos veces
+                    if not hasattr(session, "ronda_premiada"):
+                        session.ronda_premiada = 0
+                    
+                    if session.ronda_premiada < session.board_state["round"]:
+                        session.ronda_premiada = session.board_state["round"]
+                        for p_id in session.players_id:
+                            session.board_state["balances"][p_id] += 3
+                    else:
+                        # Si ya se ha premiado esta ronda, salimos para no duplicar monedas ni tiradas
+                        return
 
                     # Aviso de las monedas y fin de ronda
                     await session.broadcast({
