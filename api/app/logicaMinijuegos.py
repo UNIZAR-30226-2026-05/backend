@@ -235,7 +235,7 @@ async def avanzar_fase_poker(session):
         "fase": session.poker["fase"],
         "bote_actual": session.poker["bote"],
         "mesa_visible": [carta_a_dict(c) for c in detalles["mesa_visible"]],
-        "jugadores_activos": session.poker["jugadores_activos"],
+        "jugadores_activos": session.poker["jugadores_activos"]
     })
 
     primero = session.poker["jugadores_activos"][0]
