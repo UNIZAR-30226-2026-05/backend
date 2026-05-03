@@ -1,7 +1,6 @@
 from schemas import CambioContrasena, UsuarioPublico, UsuarioRegistro, MinijuegoInfo 
 from database import get_db_connection
-
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import HTTPException, status, APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from security import verificar_password, crear_token_acceso, obtener_hash_password, SECRET_KEY, ALGORITHM
 from datetime import datetime
@@ -74,6 +73,13 @@ def crear_usuario(usuario: UsuarioRegistro):  #USuarioREgisrado es la clase de p
 # ---------------------------------------------------------
 @router.get("/", response_model=List[str]) # Cambié el response_model para que coincida con strings
 def obtener_todos_usuarios():
+    """
+    Obtiene la lista de todos los usuarios registrados.
+
+    Devuelve una lista con los nombres de todos los usuarios. Si no hay usuarios registrados, devuelve un error 404
+    {"detail": "No hay usuarios"}.
+    """
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -86,9 +92,46 @@ def obtener_todos_usuarios():
         if not resultado_raw:
             raise HTTPException(status_code=404, detail="No hay usuarios")
             
-        usuarios_limpios = [fila[0] for fila in resultado_raw]
+        usuarios_limpios = [fila['nombre'] for fila in resultado_raw]
         
         return usuarios_limpios
+        
+    finally:
+        cursor.close()
+        conn.close()
+# ---------------------------------------------------------
+# FILTRAR USUARIOS (GET)
+@router.get("/filtrar_usuarios")
+def filtrar_usuarios(cadena: str):
+    """
+    Permite filtrar usuarios por una cadena de texto. La cadena debe ser idéntica a la parte del nombre que se busca
+    Parámetros:
+
+    - **cadena**: cadena de texto para filtrar los nombres de usuario (debe tener al menos 4 caracteres)
+
+    Devuelve una lista con {nombre: ...} que contienen la cadena especificada.
+    """
+    if len(cadena) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="La búsqueda debe tener al menos 4 caracteres"
+        )
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        filtro = f"%{cadena}%"
+        
+        query = """
+            SELECT nombre 
+            FROM USUARIOS.USUARIO 
+            WHERE nombre LIKE %s
+        """
+
+        cursor.execute(query, (filtro,))
+        resultado = cursor.fetchall()
+        
+        return resultado
         
     finally:
         cursor.close()
@@ -98,6 +141,13 @@ def obtener_todos_usuarios():
 # ---------------------------------------------------------
 @router.get("/{nombre}", response_model=UsuarioPublico)
 def obtener_usuario(nombre: str):
+    """
+    Obtiene la información pública de un usuario específico.
+
+    - **nombre**: nombre del usuario a obtener
+
+    Devuelve la información pública del usuario si existe, o un error 404 {"detail": "Usuario no encontrado"}.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -128,10 +178,25 @@ def obtener_usuario(nombre: str):
 # ---------------------------------------------------------
 @router.get("/{nombre_user}/amigos", response_model=List[UsuarioPublico])
 def obtener_todos_amigos_user(nombre_user: str):
+    """
+    Obtiene la lista de todos los usuarios que son amigos del usuario especificado.
+    Parámetros:
+
+    - **nombre_user**: nombre del usuario del que se quieren obtener los amigos
+
+    Devuelve una lista con los nombres de todos los usuarios. Si no existe el usuario especificado, devuelve un error 404
+    {"detail": "Usuario no encontrado"}.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
+        cursor.execute("SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s", (nombre_user,))
+        usuario_existe = cursor.fetchone()
+
+        if not usuario_existe:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
         query = """
         (SELECT usuario1 AS nombre
         FROM USUARIOS.AMIGOS 
@@ -148,10 +213,7 @@ def obtener_todos_amigos_user(nombre_user: str):
         
         resultado = cursor.fetchall() # Trae TODOS
         
-        if not resultado:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
-            
-        return resultado
+        return resultado    # Si no hay amigos, devuelve una lista vacía
         
     finally:
         cursor.close()
@@ -162,45 +224,12 @@ def obtener_todos_amigos_user(nombre_user: str):
 #                                                      ENDPOINTS SESIÓN ACTIVA
 # =================================================================================================================================================
 # =================================================================================================================================================
-
 # ---------------------------------------------------------
 # IMPORTANTE!! ESto es lo que utilizamos como dependencia en el resto de endpoints para que los usuarios
 # necesiten autenticación para utilizarlos.
 # Básicamente al llamar a un endpoint como el de unirnos a partida, llama previamente a esta función que comprueba 
 # nuestro token en la db y si funciona devuelve el nombre de usuario
 # ---------------------------------------------------------
-
-from fastapi import HTTPException, status
-
-@router.get("/filtrar_usuarios")
-def filtrar_usuarios(cadena: str):
-
-    if len(cadena) < 4:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="La búsqueda debe tener al menos 4 caracteres"
-        )
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        filtro = f"%{cadena}%"
-        
-        query = """
-            SELECT nombre 
-            FROM USUARIOS.USUARIO 
-            WHERE nombre LIKE %s
-        """
-
-        cursor.execute(query, (filtro,))
-        resultado = cursor.fetchall()
-        
-        return resultado
-        
-    finally:
-        cursor.close()
-        conn.close()
-
 def obtener_usuario_actual(token = Depends(oauth2_scheme)):
     """Valida el token y devuelve el nombre del usuario logueado"""
     credentials_exception = HTTPException(
@@ -238,6 +267,16 @@ def obtener_usuario_actual(token = Depends(oauth2_scheme)):
 # ---------------------------------------------------------
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    Permite a un usuario iniciar sesión y obtener un token de acceso JWT.
+    El token se guarda o actualiza en la tabla USUARIOS.SESION_ACTIVA y es devuelto al usuario.
+    Parámetros:
+    
+    - **username**: nombre de usuario
+    - **password**: contraseña del usuario
+
+    Si el nombre de usuario o la contraseña son incorrectos, devuelve un error 401 {"detail": "Usuario o contraseña incorrectos"}.
+    """
     #en form_data está username y password
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -282,6 +321,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 # ---------------------------------------------------------
 #  AÑADIR A AMIGOS(POST)
 # ---------------------------------------------------------
+# REVISAR POR SI QUEREMOS METERLE TOKEN PARA SOLO ESPECIFICAR UN USARIO AL QUE SEGUIR
 @router.post("/amigos")
 def annadirAmigos(user1: str, user2: str):
     conn = get_db_connection()
@@ -401,6 +441,10 @@ def rechazarSolicitud(rechazado: str, rechazador: str):
         conn.close()
 
 def obtener_invitaciones_usuario(player_id: str):
+    """
+    Permite obtener la lista de nombres de usuarios que han enviado una solicitud de amistad al usuario especificado. 
+    Devuelve una lista de nombres de usuarios o una lista vacía si no hay solicitudes.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -424,9 +468,22 @@ def obtener_invitaciones_usuario(player_id: str):
 # ---------------------------------------------------------
 # CAMBIO CONTRASEÑA (POST)
 # ---------------------------------------------------------
-#Response model es el modelo de salida también definidio en pydantic
 @router.post("/cambio_contrasena/", response_model=UsuarioPublico, status_code=status.HTTP_200_OK) 
 def cambiar_contrasena(datos: CambioContrasena, usuario_actual: str = Depends(obtener_usuario_actual)):
+    """
+    Permite a un usuario cambiar su contraseña.
+    Parámetros:
+    - **contrasena_actual**: contraseña actual del usuario
+    - **contrasena_nueva**: nueva contraseña que el usuario desea establecer (min. 8 caracteres)
+
+    El endpoint puede devolver {nombre: ...} si el cambio de contraseña se realizó correctamente por el usuario, 
+    o un error 401 {"detail": "La contraseña actual es incorrecta"} si la contraseña actual no coincide,
+    o un error 404 {"detail": "Usuario no encontrado"} si el usuario no existe (aunque esto no debería ocurrir porque el usuario ya 
+    se ha verificado mediante token antes de llegar a este punto).
+
+    **ESTE ENDPOINT ESTÁ PROTEGIDO MEDIANTE TOKEN**
+    """
+
     conn = get_db_connection()
     cursor = conn.cursor()
     

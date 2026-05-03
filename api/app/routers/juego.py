@@ -10,6 +10,18 @@ router = APIRouter()
 
 @router.get("/juego/c_mov")
 def obtener_desplazamiento_casilla(casilla):
+    """
+    Devuelve el desplazamiento asociado a una casilla de movimiento.
+    Parámetros:
+
+    - **casilla**: número de la casilla de movimiento
+
+    Si la casilla no es de movimiento se devolverá null
+
+    Ejemplo de uso:
+    GET /juego/c_mov?casilla=3 -> {"desplazamiento": 5}
+    """
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -17,10 +29,10 @@ def obtener_desplazamiento_casilla(casilla):
         query = """
             SELECT movimiento 
             FROM JUEGO.C_MOV
-            WHERE numero = casilla
+            WHERE numero = %s
         """
         # Ejecutamos la query pasando los datos como tupla (para no inyección)
-        cursor.execute(query,(casilla))
+        cursor.execute(query, (casilla,))
         
         # Confirmamos los cambios en la BD -> ESto es sobre todo cuando vas cogiendo muchos datos para que se te guarden pero no es imprescindible
         conn.commit()
@@ -54,7 +66,7 @@ def obtener_desplazamiento_casilla(casilla):
 @router.get("/casillas/tipos", response_model=Dict[int,str]) 
 def obtener_tipos_casillas():
     """
-    Al iniciar la partida, se obtiene un DICCIONARIO con el contenido de cada casilla (clave: número, valor: tipo)
+    Devuelve todas las casillas normales del tablero. La respuesta es un diccionario con el formato {numero_casilla: tipo_casilla}.
     """
     
     conn = get_db_connection()
@@ -141,7 +153,7 @@ def obtener_objeto_aleatorio():
 @router.get("/personajes", response_model=List[PersonajesInfo])
 def obtener_listado_personajes():
     """
-    Devuelve los personajes existentes en el sistema
+    Devuelve los personajes existentes en el sistema junto al nombre de su habilidad y descripción.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -166,6 +178,10 @@ def obtener_listado_personajes():
 # ---------------------------------------------------------
 @router.get("/minijuegos/", response_model=List[MinijuegoInfo])
 def listar_minijuegos():
+    """
+    Devuelve todos los minijuegos existentes en el sistema junto a su descripción.
+    """
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -185,6 +201,10 @@ def listar_minijuegos():
 # ---------------------------------------------------------
 @router.get("/minijuegos_eleccion/", response_model=List[MinijuegoInfo])
 def listar_minijuegos_eleccion():
+    """
+    Devuelve todos los minijuegos de elección existentes en el sistema junto a su descripción.
+    """
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -200,6 +220,18 @@ def listar_minijuegos_eleccion():
         conn.close()
 
 def obtenerTipoCasilla(numCasilla: int):
+    """
+    Devuelve el tipo de casilla del número de casilla dado y su "extra" que le acompaña (minijuego, movimiento, penalización, ...).
+    Parámetros:
+
+    - **numCasilla**: número de la casilla
+
+    Si la casilla es "normal" no se devuelve ningún extra
+
+    Ejemplo de uso:
+    obtenerTipoCasilla(5) -> ("mov", 3)
+    """
+        
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -247,6 +279,10 @@ def obtenerTipoCasilla(numCasilla: int):
 
 # Función para obtener la descripción de un minijuego de una casilla dado su nombre
 def obtener_descripcion_minijuego_casilla(minijuego: str):
+    """
+    Devuelve la descripción de un minijuego dado su nombre. Se usa para mostrar la descripción del minijuego"
+    """
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -282,12 +318,26 @@ def obtener_descripcion_minijuego_casilla(minijuego: str):
 # ---------------------------------------------------------
 @router.get("/juego/precio_objeto/{nombre}", response_model=int)
 def get_precio_objeto(nombre: str):
+    """
+    Devuelve el precio de un objeto dado su nombre.
+    Parámetros:
+
+    - **nombre**: nombre del objeto
+
+    Si el objeto no existe {detail: "Objeto no encontrado"} con código de error 404
+
+    Ejemplo de uso:
+    GET /juego/precio_objeto/Barrera -> 100
+    """
     precio = obtener_precio_objeto_db(nombre)
     if precio is None:
         raise HTTPException(status_code=404, detail="Objeto no encontrado")
     return precio
 
 def obtener_obj_ruleta():
+    """
+    Devuelve un objeto aleatorio de los posibles candidatos que hay en la tabla OBJETO_RULETA.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
 

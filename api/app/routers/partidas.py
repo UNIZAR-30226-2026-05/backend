@@ -15,6 +15,10 @@ MAX_JUGADORES = 4  # Definir el número máximo de jugadores por partida
 # ---------------------------------------------------------
 @router.get("/", response_model=List[int])
 def obtener_partidas_activas():
+    """
+    Devuelve una lista de IDs de las partidas activas.
+    Si no hay partidas activas, devuelve un error 404 {"detail": "No hay partidas activas"}.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -41,6 +45,12 @@ def obtener_partidas_activas():
 # ---------------------------------------------------------
 @router.post("/crear_partida", status_code=status.HTTP_201_CREATED, response_model=int)
 def crear_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
+    """
+    Crea una nueva partida y asigna al usuario actual como jugador de esa partida.
+    Devuelve el ID de la partida creada.
+
+    **ESTE ENDPOINT ESTÁ PROTEGIDO MEDIANTE TOKEN**
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -86,6 +96,13 @@ def crear_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
 # ---------------------------------------------------------
 @router.post("/unirse_partida", status_code=status.HTTP_201_CREATED, response_model=int)
 async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obtener_usuario_actual) ):
+    """
+    Permite unirse a una partida existente y asigna al usuario actual como jugador de esa partida.
+    Devuelve el ID de la partida a la que se unió. Si la partida no existe, devuelve un error 404 {"detail": "Partida no encontrada"}.
+    y si la partida ya tiene 4 jugadores, devuelve un error 400 {"detail": "La partida está llena"}.
+
+    **ESTE ENDPOINT ESTÁ PROTEGIDO MEDIANTE TOKEN**
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -145,6 +162,10 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
 # Actualizar casilla de jugador
 
 def actualizar_casilla(game_id: int, player: str, nueva_casilla: int):
+    """
+    Permite actualizar la casilla de un jugador en una partida. Devuelve True si la actualización se realizó correctamente, 
+    o False si hubo un error.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -182,6 +203,10 @@ def actualizar_casilla(game_id: int, player: str, nueva_casilla: int):
 # Actualizar casilla de jugador
 
 def actualizar_dinero(game_id: int, player: str, diferencia_saldo: int):
+    """
+    Permite actualizar el dinero de un jugador en una partida. La diferencia de saldo puede ser positiva (ganancia) o 
+    negativa (pérdida). Devuelve True si la actualización se realizó correctamente, o False si hubo un error.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -225,6 +250,10 @@ def actualizar_dinero(game_id: int, player: str, diferencia_saldo: int):
 # GUARDAR PERSONAJE BBDD
 
 def guardar_personaje(game_id: int, player: str, character: str):
+    """
+    Permite guardar el personaje elegido por un jugador en la base de datos. Devuelve True si la actualización se realizó
+    correctamente, o False si hubo un error.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -261,7 +290,11 @@ def guardar_personaje(game_id: int, player: str, character: str):
 # ---------------------------------------------------------
 
 def verificar_usuario(cursor, user: str):
+    """
+    Permite verificar si un usuario existe en la base de datos. Devuelve True si el usuario existe, o False si no existe.
+    """
     query_usuario = "SELECT nombre FROM USUARIOS.USUARIO WHERE nombre = %s"
+
     cursor.execute(query_usuario, (user,))
     resultado = cursor.fetchone()
 
