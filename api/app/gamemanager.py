@@ -476,7 +476,7 @@ class GameManager:
                     if session.board_state["characters"].get(user) == "Escapista":   # Si el jugador es el escapista, solo pierde 1 turno
                         extra -= 1
 
-                    session.board_state["penalty_turns"][user] = session.board_state["penalty_turns"].get(user, 0) + extra
+                    session.penalizacion_pendiente += extra   # El jugador pierde turnos
                     await session.broadcast({
                         "type": "penalizacion_actualizada",
                         "user": user,
@@ -813,52 +813,33 @@ class GameManager:
                                 "minijuegos": dos_minijuegos
                             })
                 else:
-                    # Aplicar penalizaciones pendientes de objetos (Barrera) al finalizar el turno
-                    for p_id, count in session.penalizacion_pendiente.items():
-                        if count > 0:
-                            session.board_state["penalty_turns"][p_id] = session.board_state["penalty_turns"].get(p_id, 0) + count
-                            session.penalizacion_pendiente[p_id] = 0
+                    # Solo avanzamos el turno si NO es fin de ronda
+                    # El fin de ronda lo gestiona el minijuego de orden al terminar
+                    session.board_state["turn"] += 1
+                    session.ha_movido_en_turno = False
+                    session.avance_extra = 0
+
+                    turno_actual = session.board_state["turn"]
+                    # Buscar al jugador que tiene este turno (búsqueda por valor en {id: pos})
+                    playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
+                    
+                    if playerId and session.players.get(playerId) is not None:
+                        penalizaciones = session.board_state["penalty_turns"].get(playerId, 0)
+                        if penalizaciones > 0:
+                            session.board_state["penalty_turns"][playerId] -= 1
                             await session.broadcast({
                                 "type": "penalizacion_actualizada",
-                                "user": p_id,
-                                "penalizacion": session.board_state["penalty_turns"][p_id]
+                                "user": playerId,
+                                "penalizacion": session.board_state["penalty_turns"][playerId]
                             })
-
-                    # Avanzamos el turno al siguiente jugador conectado
-                    total_jugadores = len(session.players_id)
-                    turno_avanzado = False
-                    
-                    while session.board_state["turn"] < total_jugadores:
-                        session.board_state["turn"] += 1
-                        session.ha_movido_en_turno = False
-                        session.avance_extra = 0
+                            # Auto-enviar fin_turno recursivamente para saltar al siguiente? 
+                            # Mejor que el cliente lo gestione o hacerlo aquí
                         
-                        turno_actual = session.board_state["turn"]
-                        playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
-                        
-                        if playerId and session.players.get(playerId) is not None:
-                            # Si tiene penalización, la decrementamos
-                            penalizaciones = session.board_state["penalty_turns"].get(playerId, 0)
-                            if penalizaciones > 0:
-                                session.board_state["penalty_turns"][playerId] -= 1
-                                await session.broadcast({
-                                    "type": "penalizacion_actualizada",
-                                    "user": playerId,
-                                    "penalizacion": session.board_state["penalty_turns"][playerId]
-                                })
-                            
-                            await session.broadcast({
+                        await session.broadcast({
                                 "type": "turno_de",
                                 "nombre_jugador": playerId,
                                 "ronda": session.board_state["round"]
-                            })
-                            turno_avanzado = True
-                            break
-
-                    if not turno_avanzado:
-                        # Si no hay nadie más conectado en esta ronda, forzamos fin de ronda (aunque no debería pasar)
-                        session.board_state["turn"] = len(session.players_id)
-                        # El próximo fin_turno disparará el if de arriba
+                            }) 
                             
         
                     
