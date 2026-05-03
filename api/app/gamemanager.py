@@ -813,8 +813,8 @@ class GameManager:
                             })
                             # Auto-enviar fin_turno recursivamente para saltar al siguiente? 
                             # Mejor que el cliente lo gestione o hacerlo aquí
-                        else:
-                            await session.broadcast({
+                        
+                        await session.broadcast({
                                 "type": "turno_de",
                                 "nombre_jugador": playerId,
                                 "ronda": session.board_state["round"]
