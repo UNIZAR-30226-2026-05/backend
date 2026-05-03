@@ -788,13 +788,17 @@ class GameManager:
                         session.dados["der"].append(dadoder)
                         sumas.append(dadoizq + dadoder)
 
+                    session.ha_movido_en_turno = False
+                    session.avance_extra = 0
+
                     # Protección para no premiar la misma ronda dos veces
                     if not hasattr(session, "ronda_premiada"):
                         session.ronda_premiada = 0
                     
                     if session.ronda_premiada < session.board_state["round"]:
                         session.ronda_premiada = session.board_state["round"]
-                        for p_id in session.players_id:
+                        # Usamos las keys de balances para asegurar que no hay duplicados en la lista de IDs
+                        for p_id in session.board_state["balances"].keys():
                             session.board_state["balances"][p_id] += 3
                     else:
                         # Si ya se ha premiado esta ronda, salimos para no duplicar monedas ni tiradas
