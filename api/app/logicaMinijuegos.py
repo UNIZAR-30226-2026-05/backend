@@ -151,9 +151,15 @@ async def iniciar_poker_real(session):
     session.poker["fase"] = "pre-flop"
     session.poker["bote"] = 0
     session.poker["jugadores_activos"] = list(jugadores_ids)
-    session.poker_respuestas_fase = {}
-    session.poker_apuesta_actual = 0
-    session.poker_apuestas_acumuladas = {}
+    session.poker["apuesta_maxima_ronda"] = 0
+    session.poker["turno"] = 0
+
+    for p_id in jugadores_ids:
+        session.poker["acumulado_apuestas_jugador"][p_id] = 0
+        session.poker["apuesta_jugador_ronda"][p_id] = 0
+
+
+    primero = session.poker["jugadores_activos"][0]
 
     # Enviamos a cada jugador sus cartas y les pedimos su primera acción (Pre-flop)
     for i, p_id in enumerate(jugadores_ids):
@@ -162,24 +168,25 @@ async def iniciar_poker_real(session):
             await ws.send_json({
                 "type": "poker_inicio_ronda",
                 "fase": "pre-flop",
-                "mis_cartas": [carta_a_dict(c) for c in manos[i]],
-                "mensaje": "¿Te retiras o haces tu primera apuesta?"
+                "mis_cartas": [carta_a_dict(c) for c in manos[i]]
             })
 
-async def avanzar_fase_poker(session):
-    # 1. Procesar quién se ha retirado
-    for p_id, datos in session.poker_respuestas_fase.items():
-        if datos["decision"] == "retirarse":
-            session.poker_activos.remove(p_id)
-            
-    # 2. Cobrar las apuestas acumuladas en la fase (incluso a los que acaban de retirarse)
-    for p_id, apuesta in session.poker_apuestas_acumuladas.items():
-        session.board_state["balances"][p_id] -= apuesta
-        session.poker_bote += apuesta
+    await session.broadcast({
+        "type": "turno_poker",
+        "nombre_jugador": primero
+    })
 
-    session.poker_respuestas_fase = {} # Limpiamos para la siguiente ronda
-    session.poker_apuesta_actual = 0
-    session.poker_apuestas_acumuladas = {}
+async def avanzar_fase_poker(session):
+
+    for p_id in session.minijuego_participantes:
+        session.poker["bote"] += session.poker["apuesta_jugador_ronda"][p_id]
+        session.board_state["balances"][p_id] -= session.poker["apuesta_jugador_ronda"][p_id]
+        session.poker["apuesta_jugador_ronda"][p_id] = 0
+    
+    session.poker["apuesta_maxima_ronda"] = 0 # Limpiamos para la siguiente ronda
+    session.poker["jugador_apuesta_maxima_ronda"] = None
+    session.poker["turno"] = 0
+
 
     # Avisamos de los nuevos saldos y el bote actualizado
     await session.broadcast({
@@ -188,9 +195,9 @@ async def avanzar_fase_poker(session):
     })
 
     # Comprobar si todos se han retirado menos uno
-    if len(session.poker_activos) == 1:
+    if len(session.poker["jugadores_activos"]) == 1:
         ganador_id = session.poker_activos[0]
-        await resolver_showdown_poker(session, ganadores_por_abandono=[ganador_id])
+        await resolver_showdown_poker(session)
         return
     elif len(session.poker_activos) == 0:
         # Raro, pero si todos se tiran a la vez, el bote se pierde o se devuelve. Lo anulamos.
@@ -199,46 +206,53 @@ async def avanzar_fase_poker(session):
         return
 
     # Avanzar a la siguiente fase
-    fase_actual = session.poker_fase
+    fase_actual = session.poker["fase"]
     detalles = session.minijuego_detalles
     
     if fase_actual == "pre-flop":
-        session.poker_fase = "flop"
+        session.poker["fase"] = "flop"
         nuevas_cartas = detalles["mesa_oculta"][0:3]
         detalles["mesa_visible"].extend(nuevas_cartas)
         
     elif fase_actual == "flop":
-        session.poker_fase = "turn"
+        session.poker["fase"] = "turn"
         nuevas_cartas = [detalles["mesa_oculta"][3]]
         detalles["mesa_visible"].extend(nuevas_cartas)
         
     elif fase_actual == "turn":
-        session.poker_fase = "river"
+        session.poker["fase"] = "river"
         nuevas_cartas = [detalles["mesa_oculta"][4]]
         detalles["mesa_visible"].extend(nuevas_cartas)
         
     elif fase_actual == "river":
         # Si llegamos aquí, toca enseñar cartas y ver quién gana de los que quedan
-        await resolver_showdown_poker(session, ganadores_por_abandono=[])
+        await resolver_showdown_poker(session)
         return
 
     # Enviar el estado actualizado al frontend para que decidan de nuevo
     await session.broadcast({
         "type": "poker_nueva_fase",
-        "fase": session.poker_fase,
-        "bote_actual": session.poker_bote,
+        "fase": session.poker["fase"],
+        "bote_actual": session.poker["bote"],
         "mesa_visible": [carta_a_dict(c) for c in detalles["mesa_visible"]],
-        "jugadores_activos": session.poker_activos,
-        "mensaje": f"Fase {session.poker_fase.upper()}. ¡Hagan sus apuestas!"
+        "jugadores_activos": session.poker["jugadores_activos"],
+    })
+
+    primero = session.poker["jugadores_activos"][0]
+
+    await session.broadcast({
+        "type": "turno_poker",
+        "nombre_jugador": primero
     })
 
 # Función para resolver el ganador final
-async def resolver_showdown_poker(session, ganadores_por_abandono):
-    bote = session.poker_bote
-    
+async def resolver_showdown_poker(session):
+    bote = session.poker["bote"]
+    num_jugadores = len(session.poker["jugadores_activos"])
+
     # Si alguien ganó porque los demás se retiraron
-    if ganadores_por_abandono:
-        ganador_id = ganadores_por_abandono[0]
+    if num_jugadores == 1:
+        ganador_id = session.poker["jugadores_activos"][0]
         session.board_state["balances"][ganador_id] += bote
         await session.broadcast({
             "type": "poker_resultados",
@@ -246,15 +260,14 @@ async def resolver_showdown_poker(session, ganadores_por_abandono):
             "bote_ganado": bote,
             "resultados_ordenados": [{"user": ganador_id, "mano": "victoria por abandono", "cartas": []}],
             "mesa_completa": [carta_a_dict(c) for c in session.minijuego_detalles.get("mesa_visible", [])],
-        })
-    
+        })    
     # Si llegamos al River, evaluamos las cartas
     else:
         jugadores_ids = session.minijuego_participantes
         resultados = []
         
         for i, p_id in enumerate(jugadores_ids):
-            if p_id in session.poker_activos:
+            if p_id in session.poker["jugadores_activos"]:
                 mano = session.minijuego_detalles["manos"][i]
                 mesa_completa = session.minijuego_detalles["mesa_oculta"]
                 
@@ -295,10 +308,9 @@ async def resolver_showdown_poker(session, ganadores_por_abandono):
 
     # Limpieza total del minijuego
     session.minijuego_actual = None
-    session.poker_fase = None
-    session.poker_bote = 0
-    session.poker_activos = []
-    session.poker_respuestas_fase = {}
+    session.poker["fase"] = None
+    session.poker["bote"] = 0
+    session.poker["jugadores_activos"] = []
     session.poker_apuesta_actual = 0
     session.poker_apuestas_acumuladas = {}
     session.minijuego_detalles = {}
