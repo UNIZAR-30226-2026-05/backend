@@ -4,7 +4,7 @@ from funcionesAuxiliaresPartida import *
 
 # Definición vagones del tren
 vagones_normales = [13, 10, 12, 9]
-vagones_especiales = [6, 16, 8, 14]
+vagones_especiales = [6, 16]
 
 # Definición de la baraja estándar de póker
 numeros = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'jota', 'reina', 'rey', 'as']
