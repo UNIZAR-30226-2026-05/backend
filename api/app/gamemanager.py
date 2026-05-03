@@ -700,14 +700,22 @@ class GameManager:
                     session.avance_extra += 1
                 
                 elif nombre_objeto == "Mejorar Dados":
-                    orden_tirada = session.board_state["order"].get(user) - 1
-                    if orden_tirada != 0: # Solo si no tienes el dado de oro
-                        # Tiramos de nuevo los dados con el orden de jugador disminuido en uno para mejorar su segundo dado de nivel
-                        session.dados["izq"][orden_tirada], session.dados["der"][orden_tirada], _ = tirarDados(orden_tirada)
-
+                    # El orden es 1-indexed (1, 2, 3, 4). 
+                    # El que tiene orden 1 ya tiene el dado de oro.
+                    orden_jugador = session.board_state["order"].get(user)
+                    
+                    if orden_jugador != 1: 
+                        # Mejoramos el dado (índice 0-3 para la función tirarDados)
+                        idx_dados = orden_jugador - 1
+                        session.dados["izq"][idx_dados], session.dados["der"][idx_dados], _ = tirarDados(idx_dados)
+                        
+                        # Notificamos al jugador de que su dado ha mejorado
+                        await session.players[user].send_json({
+                            "type": "dados_mejorados"
+                        })
                     else: 
                         await session.players[user].send_json({
-                        "error": "No puedes usar este objeto porque tienes el dado de oro."
+                            "error": "No puedes usar este objeto porque ya tienes el dado de oro."
                         })
                         return
                     
@@ -780,8 +788,17 @@ class GameManager:
                         session.dados["der"].append(dadoder)
                         sumas.append(dadoizq + dadoder)
 
-                    for p_id in session.players_id:
-                        session.board_state["balances"][p_id] += 3
+                    # Protección para no premiar la misma ronda dos veces
+                    if not hasattr(session, "ronda_premiada"):
+                        session.ronda_premiada = 0
+                    
+                    if session.ronda_premiada < session.board_state["round"]:
+                        session.ronda_premiada = session.board_state["round"]
+                        for p_id in session.players_id:
+                            session.board_state["balances"][p_id] += 3
+                    else:
+                        # Si ya se ha premiado esta ronda, salimos para no duplicar monedas ni tiradas
+                        return
 
                     # Aviso de las monedas y fin de ronda
                     await session.broadcast({
