@@ -29,7 +29,7 @@ class GameSession:
         self.board_state = {}
         self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
         self.players_id = []
-            # Minijuegos
+        # Minijuegos
         self.minijuego_actual = None
         self.minijuego_tipo = None  # "orden" o "casilla" 
         self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
@@ -135,10 +135,10 @@ class GameManager:
             session.poker["turno"] = 0
             
         if player_id not in session.board_state["positions"]:
-                    session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
-                    session.board_state["balances"][player_id] = 1
-                    session.board_state["order"][player_id] = len(session.players)
-                    session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
+            session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
+            session.board_state["balances"][player_id] = 1
+            session.board_state["order"][player_id] = len(session.players)
+            session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
 
         if reconnect:
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
@@ -707,7 +707,7 @@ class GameManager:
 
                     else: 
                         await session.players[user].send_json({
-                        "error": "No puedes usar este objeto porque tienes el dado de oro."
+                            "error": "No puedes usar este objeto porque tienes el dado de oro."
                         })
                         return
                     
