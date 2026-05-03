@@ -602,7 +602,7 @@ class GameManager:
                         })
                         return
 
-                    if cantidad < 0 or total_usuario > session.board_state["balances"].get(user, 0):
+                    if cantidad < 0 or session.poker["apuesta_jugador_ronda"][user]  > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({"error": "Apuesta inválida o saldo insuficiente."})
                         return
 
@@ -637,7 +637,7 @@ class GameManager:
                         avanzar_fase_poker(session)
                     
                 elif decision == "retirarse":
-                    session.poker["jugadores_activos"].remove(jugador_a_eliminar)             
+                    session.poker["jugadores_activos"].remove(user)             
             
                 session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
                 turno = session.poker["turno"]
