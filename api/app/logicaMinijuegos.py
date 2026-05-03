@@ -66,8 +66,6 @@ async def finalizar_minijuego_orden(session):
 
 
     session.board_state["turn"] = 1
-    session.ha_movido_en_turno = False
-    session.ha_mejorado_dados = False
 
     await session.broadcast({
         "type": "minijuego_resultados",

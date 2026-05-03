@@ -22,45 +22,46 @@ META = 71
 # el cual se encargara de que si no existe crear uno nuevo
 
 class GameSession:
-    def __init__(self, game_id: int):
-        self.game_id = game_id
-        self.players: dict[str, WebSocket] = {}
-        self.status = "WAITING"
-        self.board_state = {}
-        self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
-        self.players_id = []
-        # Minijuegos
-        self.minijuego_actual = None
-        self.minijuego_tipo = None  # "orden" o "casilla" 
-        self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
-        self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
-        self.minijuego_participantes = [] # Para gestionar los ids que participan en el minijuego actual
-        self.ha_movido_en_turno = False # Flag para saber si el jugador ya ha tirado los dados en su turno
-        self.avance_extra = 0 # Para objetos como el "Avanzar Casillas"
-        self.penalizacion_pendiente = {} # Para objetos como la "Barrera"
-        self.ha_mejorado_dados = False # Para el objeto "Mejorar Dados"
-        self.poker = {} # Para el minijuego de Poker
+        def __init__(self, game_id: int):
+            self.game_id = game_id
+            self.players: dict[str, WebSocket] = {}
+            self.status = "WAITING"
+            self.board_state = {}
+            self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
+            self.players_id = []
+            # Minijuegos
+            self.minijuego_actual = None
+            self.minijuego_tipo = None  # "orden" o "casilla" 
+            self.minijuego_detalles = {} # {"objetivo": 10, "cartas": [3, 15, 27, 40], ...} solo para elección de orden
+            self.minijuego_scores = {}   # {"Edu1": 350, "Edu2": 410..., "Edu4": 290}
+            self.minijuego_participantes = [] # Para gestionar los ids que participan en el minijuego actual
+            self.poker = {}
 
 
-    @property
-    def is_full(self):
-        return len(self.players) == MAX_JUGADORES
-    
-    async def broadcast(self, message: dict):
-        jugadores_desconectados = []
+            self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
+            self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
+            self.ha_movido_en_turno = False # Flag para saber si el jugador ya ha tirado los dados en su turno
 
-        for player_id, ws in self.players.items():
-            if ws is not None:
-                try:
-                    await ws.send_json(message)
-                except Exception as e:
-                    # Si falla el envío (ej. WebSocketDisconnect), capturamos el error
-                    print(f"Omitiendo jugador {player_id} (desconectado): {e}")
-                    jugadores_desconectados.append(player_id)
+
+        @property
+        def is_full(self):
+            return len(self.players) == MAX_JUGADORES
         
-        # Limpiamos a los "fantasmas" marcando su socket como None
-        for p_id in jugadores_desconectados:
-            self.players[p_id] = None
+        async def broadcast (self, message: dict):
+            jugadores_desconectados = []
+
+            for player_id, ws in self.players.items():
+                if ws is not None:
+                    try:
+                        await ws.send_json(message)
+                    except Exception as e:
+                        # Si falla el envío (ej. WebSocketDisconnect), capturamos el error
+                        print(f"Omitiendo jugador {player_id} (desconectado): {e}")
+                        jugadores_desconectados.append(player_id)
+            
+            # Limpiamos a los "fantasmas" marcando su socket como None
+            for p_id in jugadores_desconectados:
+                self.players[p_id] = None
 
 class GameManager:
     def __init__(self):
@@ -135,10 +136,10 @@ class GameManager:
             session.poker["turno"] = 0
             
         if player_id not in session.board_state["positions"]:
-            session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
-            session.board_state["balances"][player_id] = 1
-            session.board_state["order"][player_id] = len(session.players)
-            session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
+                    session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
+                    session.board_state["balances"][player_id] = 1
+                    session.board_state["order"][player_id] = len(session.players)
+                    session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
 
         if reconnect:
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
@@ -476,7 +477,7 @@ class GameManager:
                     if session.board_state["characters"].get(user) == "Escapista":   # Si el jugador es el escapista, solo pierde 1 turno
                         extra -= 1
 
-                    session.penalizacion_pendiente += extra   # El jugador pierde turnos
+                    session.board_state["penalty_turns"][user] = session.board_state["penalty_turns"].get(user, 0) + extra
                     await session.broadcast({
                         "type": "penalizacion_actualizada",
                         "user": user,
@@ -601,8 +602,7 @@ class GameManager:
                         })
                         return
 
-                    apuesta_total_usuario = session.poker["apuesta_jugador_ronda"][user]
-                    if cantidad < 0 or apuesta_total_usuario > session.board_state["balances"].get(user, 0):
+                    if cantidad < 0 or total_usuario > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({"error": "Apuesta inválida o saldo insuficiente."})
                         return
 
@@ -620,7 +620,7 @@ class GameManager:
                         await session.broadcast({
                             "type": "poker_apuesta",
                             "nombre_usuario": user,
-                            "apuesta": session.poker["apuesta_jugador_ronda"][user]
+                            "apuesta": session.poker["jugador_apuesta_maxima_ronda"][user]
                         })
 
                 elif decision == "pasar":
@@ -637,7 +637,7 @@ class GameManager:
                         avanzar_fase_poker(session)
                     
                 elif decision == "retirarse":
-                    session.poker["jugadores_activos"].remove(user)             
+                    session.poker["jugadores_activos"].remove(jugador_a_eliminar)             
             
                 session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
                 turno = session.poker["turno"]
@@ -707,7 +707,7 @@ class GameManager:
 
                     else: 
                         await session.players[user].send_json({
-                            "error": "No puedes usar este objeto porque tienes el dado de oro."
+                        "error": "No puedes usar este objeto porque tienes el dado de oro."
                         })
                         return
                     
@@ -769,8 +769,6 @@ class GameManager:
                 if session.board_state["turn"] == len(session.players):
                     session.board_state["turn"] = 0 # Lo ponemos a 0 para que al sumarle 1 después sea 1
                     session.board_state["round"] += 1 
-                    session.ha_movido_en_turno = False
-                    session.ha_mejorado_dados = False
 
                     session.dados["izq"] = []
                     session.dados["der"] = []
@@ -813,33 +811,52 @@ class GameManager:
                                 "minijuegos": dos_minijuegos
                             })
                 else:
-                    # Solo avanzamos el turno si NO es fin de ronda
-                    # El fin de ronda lo gestiona el minijuego de orden al terminar
-                    session.board_state["turn"] += 1
-                    session.ha_movido_en_turno = False
-                    session.avance_extra = 0
-
-                    turno_actual = session.board_state["turn"]
-                    # Buscar al jugador que tiene este turno (búsqueda por valor en {id: pos})
-                    playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
-                    
-                    if playerId and session.players.get(playerId) is not None:
-                        penalizaciones = session.board_state["penalty_turns"].get(playerId, 0)
-                        if penalizaciones > 0:
-                            session.board_state["penalty_turns"][playerId] -= 1
+                    # Aplicar penalizaciones pendientes de objetos (Barrera) al finalizar el turno
+                    for p_id, count in session.penalizacion_pendiente.items():
+                        if count > 0:
+                            session.board_state["penalty_turns"][p_id] = session.board_state["penalty_turns"].get(p_id, 0) + count
+                            session.penalizacion_pendiente[p_id] = 0
                             await session.broadcast({
                                 "type": "penalizacion_actualizada",
-                                "user": playerId,
-                                "penalizacion": session.board_state["penalty_turns"][playerId]
+                                "user": p_id,
+                                "penalizacion": session.board_state["penalty_turns"][p_id]
                             })
-                            # Auto-enviar fin_turno recursivamente para saltar al siguiente? 
-                            # Mejor que el cliente lo gestione o hacerlo aquí
+
+                    # Avanzamos el turno al siguiente jugador conectado
+                    total_jugadores = len(session.players_id)
+                    turno_avanzado = False
+                    
+                    while session.board_state["turn"] < total_jugadores:
+                        session.board_state["turn"] += 1
+                        session.ha_movido_en_turno = False
+                        session.avance_extra = 0
                         
-                        await session.broadcast({
+                        turno_actual = session.board_state["turn"]
+                        playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
+                        
+                        if playerId and session.players.get(playerId) is not None:
+                            # Si tiene penalización, la decrementamos
+                            penalizaciones = session.board_state["penalty_turns"].get(playerId, 0)
+                            if penalizaciones > 0:
+                                session.board_state["penalty_turns"][playerId] -= 1
+                                await session.broadcast({
+                                    "type": "penalizacion_actualizada",
+                                    "user": playerId,
+                                    "penalizacion": session.board_state["penalty_turns"][playerId]
+                                })
+                            
+                            await session.broadcast({
                                 "type": "turno_de",
                                 "nombre_jugador": playerId,
                                 "ronda": session.board_state["round"]
-                            }) 
+                            })
+                            turno_avanzado = True
+                            break
+
+                    if not turno_avanzado:
+                        # Si no hay nadie más conectado en esta ronda, forzamos fin de ronda (aunque no debería pasar)
+                        session.board_state["turn"] = len(session.players_id)
+                        # El próximo fin_turno disparará el if de arriba
                             
         
                     
