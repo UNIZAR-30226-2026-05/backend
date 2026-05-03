@@ -598,7 +598,7 @@ class GameManager:
                     if session.poker["apuesta_jugador_ronda"][user] < session.poker["apuesta_maxima_ronda"]:
                         await session.players[user].send_json({
                             "type": "error",
-                            "message": f"Debes igualar la apuesta actual ({session.poker["apuesta_maxima_ronda"]})."
+                            "message": f"Debes igualar la apuesta actual ({session.poker['apuesta_maxima_ronda']})."
                         })
                         return
 
@@ -629,7 +629,7 @@ class GameManager:
                     if session.poker["apuesta_jugador_ronda"][user] < session.poker["apuesta_maxima_ronda"]:
                         await session.players[user].send_json({
                             "type": "error",
-                            "message": f"Debes igualar la apuesta actual ({session.poker["apuesta_maxima_ronda"]})."
+                            "message": f"Debes igualar la apuesta actual ({session.poker['apuesta_maxima_ronda']})."
                         })
                         return
 
