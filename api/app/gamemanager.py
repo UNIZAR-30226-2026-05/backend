@@ -15,7 +15,7 @@ import random
 import asyncio
 from logicaMinijuegos import *
 
-MAX_JUGADORES = 4
+MAX_JUGADORES = 2
 META = 71
 
 # Crea una nueva sesion de juego. Nunca se llama directamente a esta sino a GameConnectionManager
@@ -774,6 +774,15 @@ class GameManager:
                 })
             
             case "fin_turno":
+                # Si el jugador actual saltó su turno (no tiró dados) y tenía penalización, la decrementamos
+                if not session.ha_movido_en_turno and session.board_state["penalty_turns"].get(user, 0) > 0:
+                    session.board_state["penalty_turns"][user] -= 1
+                    await session.broadcast({
+                        "type": "penalizacion_actualizada",
+                        "user": user,
+                        "penalizacion": session.board_state["penalty_turns"][user]
+                    })
+
                 if session.board_state["turn"] == len(session.players):
                     session.board_state["turn"] = 0 # Lo ponemos a 0 para que al sumarle 1 después sea 1
                     session.board_state["round"] += 1 
@@ -856,16 +865,6 @@ class GameManager:
                         playerId = next((p_id for p_id, pos in session.board_state["order"].items() if pos == turno_actual), None)
                         
                         if playerId and session.players.get(playerId) is not None:
-                            # Si tiene penalización, la decrementamos
-                            penalizaciones = session.board_state["penalty_turns"].get(playerId, 0)
-                            if penalizaciones > 0:
-                                session.board_state["penalty_turns"][playerId] -= 1
-                                await session.broadcast({
-                                    "type": "penalizacion_actualizada",
-                                    "user": playerId,
-                                    "penalizacion": session.board_state["penalty_turns"][playerId]
-                                })
-                            
                             await session.broadcast({
                                 "type": "turno_de",
                                 "nombre_jugador": playerId,
