@@ -3,11 +3,9 @@ from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocketDisconnect
 from unittest.mock import patch, MagicMock
 
-# Usa una ruta consistente para todos
 from gamemanager import manager, GameSession
 from sessionmanager import lobby_manager
-from api.app.main import app 
-# O "from main import app" si el archivo main está en la raíz
+from main import app 
 
 # Instanciación del cliente de pruebas de FastAPI
 client = TestClient(app)
@@ -40,7 +38,7 @@ def setup_entorno_websockets():
     de seguridad (JWT y PostgreSQL) para permitir 
     la conexión del TestClient sin dependencias.
     """
-    # 1. Purgado de estado ANTES (Evita la contaminación cruzada entre tests)
+    # Limpieza de estado ANTES
     # Limpiamos todas las conexiones existentes
     for game_id in list(manager.active_games.keys()):
         session = manager.active_games[game_id]
@@ -77,7 +75,7 @@ def setup_entorno_websockets():
          
          yield
     
-    # 2. Purgado de estado DESPUÉS (Limpieza post-test)
+    # Limpieza de estado DESPUÉS
     for game_id in list(manager.active_games.keys()):
         session = manager.active_games[game_id]
         session.players.clear()
@@ -163,7 +161,7 @@ def test_ws_conexion_exitosa_partida(partida_en_espera):
 def test_ws_accion_mover_jugador(partida_en_espera):
     game_id, _ = partida_en_espera
     
-    # Necesitas 4 tokens/nombres distintos
+    # Necesitamos 4 tokens/nombres distintos
     jugadores = ["Edu1", "Edu2", "Edu3", "Edu4"]
     
     # Usamos un ExitStack para manejar 4 conexiones al mismo tiempo fácilmente
@@ -281,18 +279,18 @@ def test_ws_ruleta_efecto_directo(partida_en_espera):
         with patch("gamemanager.obtenerTipoCasilla", return_value=("obj", "1")):
             ws1.send_json({"action": "move_player"})
             
-            # 1. Movimiento inicial por dados
+            # Movimiento inicial por dados
             esperar_evento(ws1, "player_moved")
-            # 2. Tipo de casilla
+            # Tipo de casilla
             esperar_evento(ws1, "tipo_casilla")
             
-            # 3. Resultado de la ruleta
+            # Resultado de la ruleta
             respuesta_ruleta = esperar_evento(ws1, "obtener_objeto")
             assert "objeto" in respuesta_ruleta
             premio = respuesta_ruleta["objeto"]
             assert premio in ["+3 Casillas", "-3 Casillas", "+3 Monedas", "-3 Monedas"]
             
-            # 4. Verificación del efecto inmediato
+            # Verificación del efecto inmediato
             if "Casillas" in premio:
                 resp_efecto = esperar_evento(ws1, "player_moved")
                 assert "nueva_casilla" in resp_efecto
