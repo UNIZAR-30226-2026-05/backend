@@ -185,8 +185,11 @@ def test_ws_accion_mover_jugador(partida_en_espera):
         assert respuesta is not None
         assert respuesta["user"] == "Edu1"
 
-
-def test_ws_accion_comprar_objeto(partida_en_espera):
+def test_ws_accion_comprar_y_usar_objeto(partida_en_espera):
+    """
+    Verifica la nueva lógica de negocio: los objetos comprados
+    se utilizan y aplican automáticamente sin almacenarse en inventario.
+    """
     game_id, _ = partida_en_espera
     jugadores = ["Edu1", "Edu2"]
 
@@ -205,9 +208,13 @@ def test_ws_accion_comprar_objeto(partida_en_espera):
             "payload": {"objeto": "Avanzar Casillas"}
         })
 
+        # Comprobamos que el balance se ha deducido
         respuesta_saldo = esperar_evento(ws1, "balances_changed")
         assert respuesta_saldo["balances"]["Edu1"] == 0
-    
+        
+        # Comprobamos que el objeto se ha aplicado inmediatamente sin pasar por inventario
+        respuesta_uso = esperar_evento(ws1, "objeto_usado")
+        assert respuesta_uso["objeto"] == "Avanzar Casillas"
 
 
 def test_ws_accion_fin_de_turno(partida_en_espera2): # <--- Usa la fixture

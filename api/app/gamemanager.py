@@ -197,7 +197,7 @@ class GameManager:
                     del session.board_state["order"][player_id]
                     del session.board_state["positions"][player_id]
                     del session.board_state["balances"][player_id]
-                    del session.board_state["turns"][player_id]
+                    #del session.board_state["turns"][player_id]
                     del session.board_state["penalty_turns"][player_id]
                     del session.penalizacion_pendiente[player_id]
                     
