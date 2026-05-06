@@ -620,7 +620,7 @@ class GameManager:
             case "poker_accion":
                 # El frontend envía: {"action": "poker_accion", "decision": "apostar" | "retirarse", "cantidad": 50}
                 decision = payload.get("decision")
-                cantidad = payload.get("cantidad")
+                cantidad = payload.get("cantidad",0)
 
                 if user not in session.poker["jugadores_activos"]:
                     return # Si ya se retiró o no juega, ignoramos
