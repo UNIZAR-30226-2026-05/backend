@@ -146,7 +146,15 @@ class GameManager:
             await websocket.send_json({
                 "type": "reconnect_success",
                 "game_status": session.status,
-                "current_board": session.board_state
+                "current_board": session.board_state,
+                
+                # Buscamos en la sesión si hay algún minijuego activo ahora (si no hay ninguno, envía None)
+                "minijuego_actual": getattr(session, "minijuego_actual", None),
+                
+                # Comprueba si el nombre del jugador está dentro de la lista de participantes de ese minijuego
+                # Normalmente simepr devolvemos False, pero por si al final queremos dejar pasar algún caso 
+                # (como una reconexión corta por flalo wifi)
+                "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
             })
         else:
             # Lógica normal para nuevos jugadores
@@ -189,7 +197,7 @@ class GameManager:
                     del session.board_state["order"][player_id]
                     del session.board_state["positions"][player_id]
                     del session.board_state["balances"][player_id]
-                    del session.board_state["turns"][player_id]
+                    #del session.board_state["turns"][player_id]
                     del session.board_state["penalty_turns"][player_id]
                     del session.penalizacion_pendiente[player_id]
                     
@@ -214,6 +222,28 @@ class GameManager:
                         "type": "not_playing",
                         "player": player_id
                     })
+                    
+                    if getattr(session, "minijuego_actual", None) is not None:
+                        # Si estaba participando en el minijuego, lo sacamos
+                        if player_id in session.minijuego_participantes:
+                            session.minijuego_participantes.remove(player_id)
+                            
+                            # Si además jugaba al póker, lo quitamos de la mesa
+                            if "jugadores_activos" in session.poker and player_id in session.poker["jugadores_activos"]:
+                                session.poker["jugadores_activos"].remove(player_id)
+
+                            # Comprobamos si quedaba alguien jugando el minijuego
+                            if len(session.minijuego_participantes) > 0:
+                                # Si quedaba alguien, comprobamos si todos los que están en el minijuego actual han terminado ya
+                                # (Por si el jugador qeu se ha salido era el último que quedaba y ha salido antes)
+                                if all(p in session.minijuego_scores for p in session.minijuego_participantes):
+                                    await resolver_minijuego(session)
+                            else:
+                                # Si era un minijuego de 1 persona (doble o nada), cancelamos minijuego 
+                                # (al salir ya se ha borrado de la lista de jugadores, pero se queda el minijuego activo)
+                                session.minijuego_actual = None
+                                session.minijuego_participantes = []
+                                session.minijuego_scores = {}
 
                 elif session.status == "ENDING":
                     del session.players[player_id]  # Eliminamos al jugador desconectado
