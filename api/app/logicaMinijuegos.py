@@ -255,7 +255,7 @@ async def resolver_showdown_poker(session):
             "id_ganadores": [ganador_id],
             "bote_ganado": bote,
             "resultados_ordenados": [{"user": ganador_id, "mano": "victoria por abandono", "cartas": []}],
-            "mesa_completa": [carta_a_dict(c) for c in session.minijuego_detalles.get("mesa_visible", [])],
+            "mesa_completa": [carta_a_dict(c) for c in session.minijuego_detalles.get("mesa_visible", [])]
         })    
     # Si llegamos al River, evaluamos las cartas
     else:
@@ -310,6 +310,15 @@ async def resolver_showdown_poker(session):
     session.poker_apuesta_actual = 0
     session.poker_apuestas_acumuladas = {}
     session.minijuego_detalles = {}
+
+    session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
+    turno = session.poker["turno"]
+    le_toca = session.poker["jugadores_activos"][turno]
+                
+    await session.broadcast({
+        "type": "turno_poker",
+        "nombre_jugador": le_toca
+    })
 
 # Dado un indice devuelve la tupla de la carta correspondiente en la baraja. Ej: 0 -> ('as', 'picas'), 51 -> ('rey', 'diamantes')
 def indexar_carta(carta):

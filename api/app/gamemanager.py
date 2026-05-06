@@ -648,7 +648,7 @@ class GameManager:
                         await session.broadcast({
                             "type": "poker_apuesta_actualizada",
                             "nombre_usuario": user,
-                            "nueva_apuesta_maxima": session.poker["apuesta_maxima_ronda"],
+                            "nueva_apuesta_maxima": session.poker["apuesta_maxima_ronda"]
                         })
                     else:
                         await session.broadcast({
