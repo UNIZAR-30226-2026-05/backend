@@ -456,12 +456,12 @@ def obtener_invitaciones_usuario(player_id: str):
         
         resultado_raw = cursor.fetchall()
         # Recuerda limpiar las tuplas para que el front reciba [ "nombre1", "nombre2" ]
-        return [fila[0] for fila in resultado_raw]
+        return [fila['solicitante'] for fila in resultado_raw]
 
     except Exception as e:
         print(f"Error en la base de datos al añadir amigo: {e}")
         conn.rollback() # Por si la base de datos se queda bloqueada
-        return False
+        return []
         
     finally:
         cursor.close()
