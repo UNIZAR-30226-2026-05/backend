@@ -653,12 +653,16 @@ class GameManager:
                         await session.broadcast({
                             "type": "poker_apuesta",
                             "nombre_usuario": user,
-                            "apuesta": session.poker["jugador_apuesta_maxima_ronda"][user]
+                            "apuesta": session.poker["apuesta_jugador_ronda"][user]
                         })
+                        sig_turno = ( session.poker["turno"] + 1 ) % len(session.poker["jugadores_activos"])
+
+                        if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
+                            avanzar_fase_poker(session)
 
                 elif decision == "pasar":
                     sig_turno = ( session.poker["turno"] + 1 ) % len(session.poker["jugadores_activos"])
-
+                    
                     if session.poker["apuesta_jugador_ronda"][user] < session.poker["apuesta_maxima_ronda"]:
                         await session.players[user].send_json({
                             "type": "error",
@@ -667,6 +671,8 @@ class GameManager:
                         return
 
                     if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
+                        avanzar_fase_poker(session)
+                    if session.poker["jugador_apuesta_maxima_ronda"] == None and session.poker["turno"] == 3:
                         avanzar_fase_poker(session)
                     
                 elif decision == "retirarse":
