@@ -661,27 +661,30 @@ class GameManager:
                 elif decision == "retirarse":
                     session.poker["jugadores_activos"].remove(user)
 
-                # 2. Actualizar el índice del turno (sin saltar a nadie si se retiran)
+                # Registrar que el usuario ha actuado (si no se ha retirado)
+                if decision != "retirarse":
+                    if user not in session.poker.setdefault("han_actuado", []):
+                        session.poker["han_actuado"].append(user)
+
+                # 2. Actualizar el índice del turno (usando modulo por si se retiró el último)
                 if decision == "retirarse":
                     if len(session.poker["jugadores_activos"]) == 1:
                         await avanzar_fase_poker(session)
                         return
-                    # Al eliminar, el array se encoge, así que mantenemos el mismo índice (usando modulo por si era el último)
                     session.poker["turno"] = session.poker["turno"] % len(session.poker["jugadores_activos"])
                 else:
                     session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
 
                 # 3. Comprobar si termina la fase
-                siguiente_jugador = session.poker["jugadores_activos"][session.poker["turno"]]
+                todos_actuaron = all(p in session.poker.get("han_actuado", []) for p in session.poker["jugadores_activos"])
+                todos_igualados = all(session.poker["apuesta_jugador_ronda"].get(p, 0) == session.poker.get("apuesta_maxima_ronda", 0) for p in session.poker["jugadores_activos"])
 
-                if session.poker["jugador_apuesta_maxima_ronda"] == siguiente_jugador:
-                    await avanzar_fase_poker(session)
-                    return
-                elif session.poker["jugador_apuesta_maxima_ronda"] is None and session.poker["turno"] == 0:
+                if todos_actuaron and todos_igualados:
                     await avanzar_fase_poker(session)
                     return
 
                 # 4. Si la fase continúa, anunciar el nuevo turno
+                siguiente_jugador = session.poker["jugadores_activos"][session.poker["turno"]]
                 await session.broadcast({
                     "type": "turno_poker",
                     "nombre_jugador": siguiente_jugador
@@ -854,6 +857,9 @@ class GameManager:
                 })
             
             case "fin_turno":
+                # SEGURIDAD: Ignorar si no es el turno de este jugador
+                if session.board_state["order"].get(user) != session.board_state["turn"]:
+                    return
                 # Si el jugador actual saltó su turno (no tiró dados) y tenía penalización, la decrementamos
                 if not session.ha_movido_en_turno and session.board_state["penalty_turns"].get(user, 0) > 0:
                     session.board_state["penalty_turns"][user] -= 1

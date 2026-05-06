@@ -150,6 +150,7 @@ async def iniciar_poker_real(session):
     session.poker["bote"] = 0
     session.poker["jugadores_activos"] = list(jugadores_ids)
     session.poker["apuesta_maxima_ronda"] = 0
+    session.poker["han_actuado"] = []
     session.poker["turno"] = 0
 
     for p_id in jugadores_ids:
@@ -190,6 +191,7 @@ async def iniciar_poker_real(session):
     })
 
 async def avanzar_fase_poker(session):
+    session.poker["han_actuado"] = []
     detalles = session.minijuego_detalles
     if not detalles or "mesa_oculta" not in detalles:
         return # Salir si el juego ya terminó o no está inicializado
