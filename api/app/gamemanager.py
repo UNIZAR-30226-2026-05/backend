@@ -408,8 +408,8 @@ class GameManager:
                     elif extra == "Mano de Poker":
                         session.minijuego_actual = extra
                         session.minijuego_tipo = "casilla"
-                        # Participan los jugadores que tengan al menos 1 moneda para apostar
-                        session.minijuego_participantes = [p_id for p_id, saldo in session.board_state["balances"].items() if saldo > 0]
+                        # Participan los jugadores que tengan al menos 5 monedas para apostar
+                        session.minijuego_participantes = [p_id for p_id, saldo in session.board_state["balances"].items() if saldo >= 5]
 
                         if len(session.minijuego_participantes) < 2:
                             # Cancelar si no hay suficientes

@@ -154,6 +154,13 @@ async def iniciar_poker_real(session):
 
     for p_id in jugadores_ids:
         session.poker["apuesta_jugador_ronda"][p_id] = 0
+        session.board_state["balances"][p_id] -= 5
+        session.poker["bote"] += 5
+
+    await session.broadcast({
+        "type": "balances_changed",
+        "balances": session.board_state["balances"]
+    })
         
     primero = session.poker["jugadores_activos"][0]
 
@@ -211,16 +218,6 @@ async def avanzar_fase_poker(session):
         detalles["mesa_visible"].extend(nuevas_cartas)
         
     elif fase_actual == "flop":
-        session.poker["fase"] = "turn"
-        nuevas_cartas = [detalles["mesa_oculta"][3]]
-        detalles["mesa_visible"].extend(nuevas_cartas)
-        
-    elif fase_actual == "turn":
-        session.poker["fase"] = "river"
-        nuevas_cartas = [detalles["mesa_oculta"][4]]
-        detalles["mesa_visible"].extend(nuevas_cartas)
-        
-    elif fase_actual == "river":
         # Si llegamos aquí, toca enseñar cartas y ver quién gana de los que quedan
         await resolver_showdown_poker(session)
         return
@@ -458,7 +455,7 @@ def evaluar_jugada(mano):
 
 def sortearManoPoker(numPlayers: int):
 
-    total_cartas_necesarias = (numPlayers * 2) + 5
+    total_cartas_necesarias = (numPlayers * 2) + 3
     if total_cartas_necesarias > 52:
         raise ValueError("Demasiados jugadores para una sola baraja.")
 
@@ -471,7 +468,7 @@ def sortearManoPoker(numPlayers: int):
         mano = [cartas_repartidas[i*2], cartas_repartidas[i*2 + 1]]
         manos_jugadores.append(mano)
         
-    mesa = cartas_repartidas[-5:]
+    mesa = cartas_repartidas[-3:]
     
     return manos_jugadores, mesa
 
