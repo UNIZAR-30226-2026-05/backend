@@ -672,7 +672,7 @@ class GameManager:
 
                     if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
                         avanzar_fase_poker(session)
-                    if session.poker["jugador_apuesta_maxima_ronda"] == None and session.poker["turno"] == 3:
+                    if session.poker["jugador_apuesta_maxima_ronda"] == None and session.poker["turno"] == len(session.poker["jugadores_activos"]) - 1:
                         avanzar_fase_poker(session)
                     
                 elif decision == "retirarse":
