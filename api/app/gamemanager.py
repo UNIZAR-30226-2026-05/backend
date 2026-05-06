@@ -659,7 +659,7 @@ class GameManager:
                         sig_turno = ( session.poker["turno"] + 1 ) % len(session.poker["jugadores_activos"])
 
                         if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
-                            avanzar_fase_poker(session)
+                            await avanzar_fase_poker(session)
 
                 elif decision == "pasar":
                     sig_turno = ( session.poker["turno"] + 1 ) % len(session.poker["jugadores_activos"])
@@ -672,9 +672,9 @@ class GameManager:
                         return
 
                     if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
-                        avanzar_fase_poker(session)
+                        await avanzar_fase_poker(session)
                     if session.poker["jugador_apuesta_maxima_ronda"] == None and session.poker["turno"] == len(session.poker["jugadores_activos"]) - 1:
-                        avanzar_fase_poker(session)
+                        await avanzar_fase_poker(session)
                     
                 elif decision == "retirarse":
                     session.poker["jugadores_activos"].remove(user)             
