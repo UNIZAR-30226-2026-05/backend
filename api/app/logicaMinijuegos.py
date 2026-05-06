@@ -3,7 +3,7 @@ import asyncio
 from funcionesAuxiliaresPartida import *
 
 # Definición vagones del tren
-vagones_normales = [13, 10, 12, 9]
+vagones_normales = [13, 11, 14, 8]
 vagones_especiales = [6, 16]
 
 # Definición de la baraja estándar de póker
@@ -484,17 +484,15 @@ def sortear_vagones():
     vagones = []
     # Primero sorteamos los vagones normales
     for _ in range(3):  
-        # Generamos un índice aleatorio válido
-        indice = random.randrange(len(vagones_normales))
+        # Obtenemos la capacidad de un vagón aleatorio
+        capacidad = random.choice(vagones_normales)
+        total_pasajeros += capacidad
 
-        # Obtenemos el valor en esa posición
-        total_pasajeros += vagones_normales[indice]
-
-        vagones.append(indice) # Añadimos al vector de índices el número del vagón sorteado
+        vagones.append(capacidad) # Añadimos al vector la capacidad del vagón sorteado
 
     # Para el último vagón, sorteamos entre los especiales
-    indice = random.randrange(len(vagones_especiales))
-    total_pasajeros += vagones_especiales[indice]
-    vagones.append(indice)
+    capacidad_especial = random.choice(vagones_especiales)
+    total_pasajeros += capacidad_especial
+    vagones.append(capacidad_especial)
 
     return vagones, total_pasajeros
