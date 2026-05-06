@@ -626,9 +626,9 @@ class GameManager:
 
                 # 1. Ejecutar la acción
                 if decision == "apostar":
-                    nueva_apuesta = session.poker["apuesta_jugador_ronda"].get(user, 0) + cantidad
+                    nueva_apuesta = cantidad
 
-                    if cantidad < 0 or nueva_apuesta > session.board_state["balances"].get(user, 0):
+                    if nueva_apuesta < session.poker["apuesta_jugador_ronda"].get(user, 0) or nueva_apuesta > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({"error": "Apuesta inválida o saldo insuficiente."})
                         return
 
@@ -686,6 +686,37 @@ class GameManager:
                     "type": "turno_poker",
                     "nombre_jugador": siguiente_jugador
                 })
+
+            case "debug_force_poker":
+                # Forzar que el usuario caiga en la casilla 46 (Póker)
+                session.board_state["positions"][user] = 46
+                actualizar_casilla(game_id, user, 46)
+                await session.broadcast({
+                    "type": "player_moved",
+                    "user": user,
+                    "nueva_casilla": 46
+                })
+                await session.broadcast({
+                    "type": "tipo_casilla",
+                    "casilla": "mini",
+                    "extra": "Mano de Poker"
+                })
+                # Iniciar inmediatamente
+                await session.broadcast({
+                    "type": "minijuego_casilla",
+                    "user": user,
+                    "minijuego": "Mano de Poker",
+                    "descripcion": "Jugareis una mano entre todos"
+                })
+                session.minijuego_actual = "Mano de Poker"
+                session.minijuego_tipo = "casilla"
+                session.minijuego_participantes = [p_id for p_id, saldo in session.board_state["balances"].items() if saldo >= 5]
+                await session.broadcast({
+                    "type": "ini_minijuego",
+                    "minijuego": "Mano de Poker",
+                    "descripcion": "Jugareis una mano entre todos"
+                })
+                await iniciar_poker_real(session)
 
             case "comprar_objeto":
                 nombre_objeto = payload["objeto"]
@@ -921,5 +952,14 @@ class GameManager:
                     
                 
                 
+
+            case "debug_add_coins":
+                for p_id in session.board_state["balances"]:
+                    session.board_state["balances"][p_id] += 50
+                
+                await session.broadcast({
+                    "type": "balances_changed",
+                    "balances": session.board_state["balances"]
+                })
 
 manager = GameManager()
