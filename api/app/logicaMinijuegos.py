@@ -171,7 +171,9 @@ async def iniciar_poker_real(session):
             await ws.send_json({
                 "type": "poker_inicio_ronda",
                 "fase": "pre-flop",
-                "mis_cartas": [carta_a_dict(c) for c in manos[i]]
+                "mis_cartas": [carta_a_dict(c) for c in manos[i]],
+                "bote_actual": session.poker["bote"],
+                "jugadores_activos": session.poker["jugadores_activos"]
             })
 
     await session.broadcast({
