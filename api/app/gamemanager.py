@@ -618,77 +618,73 @@ class GameManager:
                     await resolver_minijuego(session)
 
             case "poker_accion":
-                # El frontend envía: {"action": "poker_accion", "decision": "apostar" | "retirarse", "cantidad": 50}
                 decision = payload.get("decision")
-                cantidad = payload.get("cantidad",0)
+                cantidad = payload.get("cantidad", 0)
 
                 if user not in session.poker["jugadores_activos"]:
-                    return # Si ya se retiró o no juega, ignoramos
+                    return
 
+                # 1. Ejecutar la acción
                 if decision == "apostar":
-                    session.poker["apuesta_jugador_ronda"][user] += cantidad
+                    nueva_apuesta = session.poker["apuesta_jugador_ronda"].get(user, 0) + cantidad
 
-                    # Verificamos si iguala la apuesta actual
-                    if session.poker["apuesta_jugador_ronda"][user] < session.poker["apuesta_maxima_ronda"]:
-                        await session.players[user].send_json({
-                            "type": "error",
-                            "message": f"Debes igualar la apuesta actual ({session.poker['apuesta_maxima_ronda']})."
-                        })
-                        return
-
-                    if cantidad < 0 or session.poker["apuesta_jugador_ronda"][user]  > session.board_state["balances"].get(user, 0):
+                    if cantidad < 0 or nueva_apuesta > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({"error": "Apuesta inválida o saldo insuficiente."})
                         return
 
-                    if session.poker["apuesta_jugador_ronda"][user] > session.poker["apuesta_maxima_ronda"]:
+                    if nueva_apuesta < session.poker["apuesta_maxima_ronda"]:
+                        await session.players[user].send_json({"type": "error", "message": f"Debes igualar la apuesta ({session.poker['apuesta_maxima_ronda']})."})
+                        return
 
-                        session.poker["apuesta_maxima_ronda"] = session.poker["apuesta_jugador_ronda"][user]
+                    session.poker["apuesta_jugador_ronda"][user] = nueva_apuesta
+
+                    if nueva_apuesta > session.poker["apuesta_maxima_ronda"]:
+                        session.poker["apuesta_maxima_ronda"] = nueva_apuesta
                         session.poker["jugador_apuesta_maxima_ronda"] = user
-                        
                         await session.broadcast({
                             "type": "poker_apuesta_actualizada",
                             "nombre_usuario": user,
-                            "nueva_apuesta_maxima": session.poker["apuesta_maxima_ronda"]
+                            "nueva_apuesta_maxima": nueva_apuesta
                         })
                     else:
                         await session.broadcast({
                             "type": "poker_apuesta",
                             "nombre_usuario": user,
-                            "apuesta": session.poker["apuesta_jugador_ronda"][user]
+                            "apuesta": nueva_apuesta
                         })
-                        sig_turno = ( session.poker["turno"] + 1 ) % len(session.poker["jugadores_activos"])
-
-                        if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
-                            await avanzar_fase_poker(session)
-                            return
 
                 elif decision == "pasar":
-                    sig_turno = ( session.poker["turno"] + 1 ) % len(session.poker["jugadores_activos"])
-                    
-                    if session.poker["apuesta_jugador_ronda"][user] < session.poker["apuesta_maxima_ronda"]:
-                        await session.players[user].send_json({
-                            "type": "error",
-                            "message": f"Debes igualar la apuesta actual ({session.poker['apuesta_maxima_ronda']})."
-                        })
+                    if session.poker["apuesta_jugador_ronda"].get(user, 0) < session.poker["apuesta_maxima_ronda"]:
+                        await session.players[user].send_json({"type": "error", "message": "No puedes pasar, debes igualar."})
                         return
 
-                    if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
-                        await avanzar_fase_poker(session)
-                        return
-                    if session.poker["jugador_apuesta_maxima_ronda"] == None and session.poker["turno"] == len(session.poker["jugadores_activos"]) - 1:
-                        await avanzar_fase_poker(session)
-                        return
-                    
                 elif decision == "retirarse":
-                    session.poker["jugadores_activos"].remove(user)             
-            
-                session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
-                turno = session.poker["turno"]
-                le_toca = session.poker["jugadores_activos"][turno]
-                
+                    session.poker["jugadores_activos"].remove(user)
+
+                # 2. Actualizar el índice del turno (sin saltar a nadie si se retiran)
+                if decision == "retirarse":
+                    if len(session.poker["jugadores_activos"]) == 1:
+                        await avanzar_fase_poker(session)
+                        return
+                    # Al eliminar, el array se encoge, así que mantenemos el mismo índice (usando modulo por si era el último)
+                    session.poker["turno"] = session.poker["turno"] % len(session.poker["jugadores_activos"])
+                else:
+                    session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
+
+                # 3. Comprobar si termina la fase
+                siguiente_jugador = session.poker["jugadores_activos"][session.poker["turno"]]
+
+                if session.poker["jugador_apuesta_maxima_ronda"] == siguiente_jugador:
+                    await avanzar_fase_poker(session)
+                    return
+                elif session.poker["jugador_apuesta_maxima_ronda"] is None and session.poker["turno"] == 0:
+                    await avanzar_fase_poker(session)
+                    return
+
+                # 4. Si la fase continúa, anunciar el nuevo turno
                 await session.broadcast({
                     "type": "turno_poker",
-                    "nombre_jugador": le_toca
+                    "nombre_jugador": siguiente_jugador
                 })
 
             case "comprar_objeto":
