@@ -420,12 +420,12 @@ class GameManager:
                             session.minijuego_actual = None
                             session.minijuego_participantes = []
                         else:
-                            # Pedimos a cada participante que haga su apuesta 
-                            for p_id in session.minijuego_participantes:
-                                await session.players[p_id].send_json({
-                                    "type": "ini_minijuego",
-                                    "minijuego": extra,
-                                })
+                            # Forzamos a todos los jugadores a entrar a la pantalla de póker (jueguen o sean espectadores)
+                            await session.broadcast({
+                                "type": "ini_minijuego",
+                                "minijuego": extra,
+                                "descripcion": obtener_descripcion_minijuego_casilla(extra)
+                            })
                             await iniciar_poker_real(session)
 
                 if tipo_casilla == 'obj':
@@ -660,6 +660,7 @@ class GameManager:
 
                         if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
                             await avanzar_fase_poker(session)
+                            return
 
                 elif decision == "pasar":
                     sig_turno = ( session.poker["turno"] + 1 ) % len(session.poker["jugadores_activos"])
@@ -673,8 +674,10 @@ class GameManager:
 
                     if session.poker["jugador_apuesta_maxima_ronda"] == session.poker["jugadores_activos"][sig_turno]:
                         await avanzar_fase_poker(session)
+                        return
                     if session.poker["jugador_apuesta_maxima_ronda"] == None and session.poker["turno"] == len(session.poker["jugadores_activos"]) - 1:
                         await avanzar_fase_poker(session)
+                        return
                     
                 elif decision == "retirarse":
                     session.poker["jugadores_activos"].remove(user)             

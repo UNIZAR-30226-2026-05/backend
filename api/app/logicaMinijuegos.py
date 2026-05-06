@@ -162,6 +162,14 @@ async def iniciar_poker_real(session):
         "balances": session.board_state["balances"]
     })
         
+    await session.broadcast({
+        "type": "poker_nueva_fase",
+        "fase": "pre-flop",
+        "bote_actual": session.poker["bote"],
+        "mesa_visible": [],
+        "jugadores_activos": session.poker["jugadores_activos"]
+    })
+
     primero = session.poker["jugadores_activos"][0]
 
     # Enviamos a cada jugador sus cartas y les pedimos su primera acción (Pre-flop)
@@ -182,6 +190,9 @@ async def iniciar_poker_real(session):
     })
 
 async def avanzar_fase_poker(session):
+    detalles = session.minijuego_detalles
+    if not detalles or "mesa_oculta" not in detalles:
+        return # Salir si el juego ya terminó o no está inicializado
 
     for p_id in session.minijuego_participantes:
         session.poker["bote"] += session.poker["apuesta_jugador_ronda"][p_id]
@@ -301,15 +312,6 @@ async def resolver_showdown_poker(session):
         "balances": session.board_state["balances"]
     })
 
-    # Limpieza total del minijuego
-    session.minijuego_actual = None
-    session.poker["fase"] = None
-    session.poker["bote"] = 0
-    session.poker["jugadores_activos"] = []
-    session.poker_apuesta_actual = 0
-    session.poker_apuestas_acumuladas = {}
-    session.minijuego_detalles = {}
-
     session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
     turno = session.poker["turno"]
     le_toca = session.poker["jugadores_activos"][turno]
@@ -318,6 +320,15 @@ async def resolver_showdown_poker(session):
         "type": "turno_poker",
         "nombre_jugador": le_toca
     })
+
+    # Limpieza total del minijuego
+    session.minijuego_actual = None
+    session.poker["fase"] = None
+    session.poker["bote"] = 0
+    session.poker["jugadores_activos"] = []
+    session.poker_apuesta_actual = 0
+    session.poker_apuestas_acumuladas = {}
+    session.minijuego_detalles = {}
 
 # Dado un indice devuelve la tupla de la carta correspondiente en la baraja. Ej: 0 -> ('as', 'picas'), 51 -> ('rey', 'diamantes')
 def indexar_carta(carta):
