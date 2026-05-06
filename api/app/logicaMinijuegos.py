@@ -155,10 +155,8 @@ async def iniciar_poker_real(session):
     session.poker["turno"] = 0
 
     for p_id in jugadores_ids:
-        session.poker["acumulado_apuestas_jugador"][p_id] = 0
         session.poker["apuesta_jugador_ronda"][p_id] = 0
-
-
+        
     primero = session.poker["jugadores_activos"][0]
 
     # Enviamos a cada jugador sus cartas y les pedimos su primera acción (Pre-flop)

@@ -425,7 +425,6 @@ class GameManager:
                                 await session.players[p_id].send_json({
                                     "type": "ini_minijuego",
                                     "minijuego": extra,
-                                    "descripcion": "Haz tu apuesta"
                                 })
                             await iniciar_poker_real(session)
 
@@ -550,48 +549,50 @@ class GameManager:
                         
             case "banquero":
                 if session.board_state["characters"].get(user) == "Banquero":
-                    # Obtenemos el orden del jugador para esta ronda
-                    playerId = session.board_state
-                    orden = session.board_state["order"]
 
-                    if orden is None:
-                        return
-
-                    # A quién le toca tirar ahora
-                    
-                    if orden != turno_actual:
-                        await session.players[user].send_json({
-                            "error": f"No es tu turno. Le toca al jugador {turno_actual}"
-                        })
-                        return
-                    
                     penalizado = payload["robar_a"]     # Usuario al que robamos
-
+                    
                     # Si es el escapiste solo le podemos quitar 1
                     if session.board_state["characters"].get(penalizado) == "Escapista":
                         if session.board_state["balances"][penalizado] > 0: # Si tiene mínimo 1 moneda se la quitamos
                             session.board_state["balances"][user] += 1
                             session.board_state["balances"][penalizado] -= 1
+                        
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
+                        
+                        else:
+                            await session.players[user].send_json({
+                                "error": f"El jugador no tiene monedas"
+                            })
+                            return
 
-                        # enviamos json aunque no se produzca el robo por falta de monedas
-                        await session.broadcast({
-                            "type": "balances_changed",
-                            "balances": session.board_state["balances"]
-                        })
 
                     else:   # Si no es el escapista le quitamos 2
                         if session.board_state["balances"][penalizado] > 1: # Si tiene mínimo 2 monedas se la quitamos
                             session.board_state["balances"][user] += 2
                             session.board_state["balances"][penalizado] -= 2
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
+
                         elif session.board_state["balances"][penalizado] == 1: # Si solo tiene 1 moneda se la quitamos
                             session.board_state["balances"][user] += 1
                             session.board_state["balances"][penalizado] -= 1
+                            await session.broadcast({
+                                "type": "balances_changed",
+                                "balances": session.board_state["balances"]
+                            })
 
-                        # enviamos json aunque no se produzca el robo por falta de monedas
-                        await session.broadcast({
-                            "type": "balances_changed",
-                            "balances": session.board_state["balances"]
-                        })
+                        else:
+                            await session.players[user].send_json({
+                                "error": f"El jugador no tiene monedas"
+                            })
+                            return
+
                 else: 
                     await session.players[user].send_json({
                         "error": f"No eres banquero"
