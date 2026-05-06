@@ -601,7 +601,7 @@ class GameManager:
             case "score_minijuego":
                 score = payload["score"]
 
-                if session.minijuego_actual in ["Doble o Nada", "Mano de Poker"]:
+                if session.minijuego_actual in ["Doble o Nada"]:
                     # Comprobamos que la apuesta sea válida
                     if score < 0 or score > session.board_state["balances"].get(user, 0):
                         await session.players[user].send_json({

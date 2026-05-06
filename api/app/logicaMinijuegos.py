@@ -84,8 +84,6 @@ async def finalizar_minijuego_casilla(session):
        await finalizar_minijuego_dilemaPrisionero(session)
    elif session.minijuego_actual == "Doble o Nada":
         await finalizar_minijuego_dobleNada(session) 
-   elif session.minijuego_actual == "Mano de Poker":
-        await finalizar_minijuego_poker(session)
 
 async def finalizar_minijuego_dilemaPrisionero(session):
     p1, p2 = session.minijuego_participantes
@@ -194,10 +192,10 @@ async def avanzar_fase_poker(session):
 
     # Comprobar si todos se han retirado menos uno
     if len(session.poker["jugadores_activos"]) == 1:
-        ganador_id = session.poker_activos[0]
+        ganador_id = session.poker["jugadores_activos"][0]
         await resolver_showdown_poker(session)
         return
-    elif len(session.poker_activos) == 0:
+    elif len(session.poker["jugadores_activos"]) == 0:
         # Raro, pero si todos se tiran a la vez, el bote se pierde o se devuelve. Lo anulamos.
         await session.broadcast({"type": "info", "message": "Todos se retiraron. Fin de la mano."})
         session.minijuego_actual = None
@@ -312,109 +310,6 @@ async def resolver_showdown_poker(session):
     session.poker_apuesta_actual = 0
     session.poker_apuestas_acumuladas = {}
     session.minijuego_detalles = {}
-
-async def finalizar_minijuego_poker(session):
-    jugadores_ids = session.minijuego_participantes
-    num_jugadores = len(jugadores_ids)
-    
-    # Recoger las apuestas, restarlas de los saldos y crear el bote
-    bote_total = 0
-    for p_id in jugadores_ids:
-        apuesta = session.minijuego_scores.get(p_id, 0)
-        session.board_state["balances"][p_id] -= apuesta
-        bote_total += apuesta
-        
-    await session.broadcast({
-        "type": "balances_changed",
-        "balances": session.board_state["balances"]
-    })
-
-    manos, mesa = sortearManoPoker(num_jugadores)
-    resultados_jugadores = []
-    
-    for i, p_id in enumerate(jugadores_ids):
-        puntos, kickers = evaluar_jugada(manos[i] + mesa)
-        resultados_jugadores.append({
-            "user": p_id,
-            "cartas": [carta_a_dict(c) for c in manos[i]],
-            "puntuacion_tupla": (puntos, kickers),
-            "mano": nombre_jugada(puntos)
-        })
-        
-    # Ordenamos usando la tupla (Puntos de jugada + Kickers de desempate)
-    resultados_jugadores.sort(key=lambda x: x["puntuacion_tupla"], reverse=True)
-    
-    # Buscamos empates:
-    mejor_tupla = resultados_jugadores[0]["puntuacion_tupla"]
-    ganadores = [r for r in resultados_jugadores if r["puntuacion_tupla"] == mejor_tupla]
-    
-    # Dividimos el bote entre los empatados
-    bote_por_ganador = bote_total // len(ganadores)
-    ids_ganadores = [g["user"] for g in ganadores]
-    
-    for r in resultados_jugadores:
-        del r["puntuacion_tupla"]
-        
-    
-    # Repartir cartas privadas
-    for i, p_id in enumerate(jugadores_ids):
-        ws = session.players.get(p_id)
-        if ws:
-            await ws.send_json({
-                "type": "poker_preflop",
-                "mis_cartas": [carta_a_dict(c) for c in manos[i]],
-                "bote": bote_total
-            })
-            
-    await session.broadcast({"type": "poker_mensaje", "texto": f"Bote de {bote_total} monedas. Repartiendo..."})
-    await asyncio.sleep(2)
-    
-    # Flop
-    await session.broadcast({
-        "type": "poker_flop",
-        "cartas_reveladas": [carta_a_dict(c) for c in mesa[0:3]]
-    })
-    await asyncio.sleep(2)
-    
-    # Turn
-    await session.broadcast({
-        "type": "poker_turn",
-        "carta_revelada": carta_a_dict(mesa[3])
-    })
-    await asyncio.sleep(2)
-    
-    # River 
-    await session.broadcast({
-        "type": "poker_river",
-        "carta_revelada": carta_a_dict(mesa[4])
-    })
-    await asyncio.sleep(3) # Tensión final
-    
-    # Se entrega el bote a los ganadores
-    for ganador_id in ids_ganadores:
-        session.board_state["balances"][ganador_id] += bote_por_ganador
-    
-    await session.broadcast({
-        "type": "poker_resultados",
-        "id_ganadores": ids_ganadores, # Enviamos lista de ganadores
-        "bote_ganado": bote_por_ganador,
-        "resultados_ordenados": resultados_jugadores,
-        "mesa_completa": [carta_a_dict(c) for c in mesa]
-    })
-    
-    await session.broadcast({
-        "type": "balances_changed",
-        "balances": session.board_state["balances"]
-    })
-
-    # Limpiamos las variables de sesión
-    session.minijuego_actual = None
-    session.minijuego_scores = {}
-    session.minijuego_participantes = []
-    session.minijuego_tipo = None
-    session.minijuego_detalles = {}
-    session.poker_apuesta_actual = 0
-    session.poker_apuestas_acumuladas = {}
 
 # Dado un indice devuelve la tupla de la carta correspondiente en la baraja. Ej: 0 -> ('as', 'picas'), 51 -> ('rey', 'diamantes')
 def indexar_carta(carta):
