@@ -724,6 +724,9 @@ class GameManager:
                     "descripcion": "Jugareis una mano entre todos"
                 })
                 await iniciar_poker_real(session)
+                await session.broadcast({
+                    "type": "force_open_poker"
+                })
 
             case "comprar_objeto":
                 nombre_objeto = payload["objeto"]
