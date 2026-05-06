@@ -407,6 +407,7 @@ def aceptarSolicitud(aceptado: str, aceptador: str):
         """
         cursor.execute(delete_query, (aceptado, aceptador))
         
+        conn.commit()
         return
 
     except Exception as e:
@@ -429,6 +430,7 @@ def rechazarSolicitud(rechazado: str, rechazador: str):
         """
         cursor.execute(delete_query, (rechazado, rechazador))
         
+        conn.commit()
         return
 
     except Exception as e:

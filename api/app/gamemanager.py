@@ -688,6 +688,13 @@ class GameManager:
                 })
 
             case "debug_force_poker":
+                # Inyectar monedas primero para que puedan jugar
+                for p_id in session.board_state["balances"]:
+                    session.board_state["balances"][p_id] += 50
+                await session.broadcast({
+                    "type": "balances_changed",
+                    "balances": session.board_state["balances"]
+                })
                 # Forzar que el usuario caiga en la casilla 46 (Póker)
                 session.board_state["positions"][user] = 46
                 actualizar_casilla(game_id, user, 46)
