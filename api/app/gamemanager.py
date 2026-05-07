@@ -831,8 +831,9 @@ class GameManager:
                         session.dados["izq"][idx_dados], session.dados["der"][idx_dados], _ = tirarDados(idx_dados)
                         
                         # Notificamos al jugador de que su dado ha mejorado
-                        await session.players[user].send_json({
-                            "type": "dados_mejorados"
+                        await session.broadcast({
+                            "type": "dados_mejorados",
+                            "user": user
                         })
                     else: 
                         await session.players[user].send_json({
