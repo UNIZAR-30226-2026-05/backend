@@ -763,6 +763,12 @@ class GameManager:
                     "type": "force_open_poker"
                 })
 
+            case "reset_afk":
+                # Reiniciar el contador solo si es el turno del jugador
+                if session.board_state["order"].get(user) == session.board_state["turn"]:
+                    session.cancel_afk_task()
+                    session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, user, "mover"))
+
             case "comprar_objeto":
                 nombre_objeto = payload["objeto"]
                 
