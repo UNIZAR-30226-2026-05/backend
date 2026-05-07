@@ -441,10 +441,7 @@ class GameManager:
                             "descripcion": f"Has obtenido: {premio}"
                         })
 
-                        # Pausa para que el frontend reproduzca la animación de la ruleta
-                        await asyncio.sleep(6)
-
-                        # Aplicar el efecto después de la pausa
+                        # Aplicar el efecto inmediatamente
                         if premio == "+3 Casillas":
                             nueva_pos = min(session.board_state["positions"][user] + 3, META)
                             session.board_state["positions"][user] = nueva_pos
