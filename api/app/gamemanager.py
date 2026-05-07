@@ -140,7 +140,6 @@ class GameManager:
             return False
 
         session.players[player_id] = websocket
-        session.penalizacion_pendiente[player_id] = 0 # Inicializamos la penalización pendiente a 0 para el jugador que se conecta
 
         #Cuando se une el primer jugador
         if "positions" not in session.board_state:
@@ -152,6 +151,8 @@ class GameManager:
             session.board_state["penalty_turns"] = {} # Turnos de penalización que le quedan a cada jugador por caer en casillas de barrera
             session.board_state["dice_levels"] = {}  # Nivel de dado actual (1=Oro, 2=Plata, 3=Bronce, 4=Normal)
             session.board_state["turn"] = 1     # guarda el turno en el que nos encontramos en la ronda
+
+            session.penalizacion_pendiente[player_id] = 0 # Inicializamos la penalización pendiente a 0 para el jugador que se conecta
 
             session.poker["fase"] = None
             session.poker["bote"] = 0
@@ -167,6 +168,8 @@ class GameManager:
                     session.board_state["order"][player_id] = len(session.players)
                     session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
                     session.board_state["dice_levels"][player_id] = 4   # Todos empiezan con dado normal (4)
+                    session.penalizacion_pendiente[player_id] = 0 # Inicializamos la penalización pendiente a 0 para el jugador que se conecta
+
 
         if reconnect:
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
