@@ -928,7 +928,10 @@ class GameManager:
                     for i in range(len(session.players)):
                         turn_order = i + 1
                         p_id = next(uid for uid, order in session.board_state["order"].items() if order == turn_order)
-                        level = session.board_state["dice_levels"].get(p_id, 4)
+                        
+                        # Actualizamos el nivel de dado basado en su posición (1º=Oro, 2º=Plata, 3º=Bronce, 4º=Normal)
+                        level = turn_order
+                        session.board_state["dice_levels"][p_id] = level
                         
                         dadoizq, dadoder, _ = tirarDados(level)
                         session.dados["izq"].append(dadoizq)
