@@ -41,6 +41,12 @@ class GameSession:
             self.avance_extra = 0 # Para gestionar el avance extra que da el objeto de avanzar casillas en el mismo turno
             self.penalizacion_pendiente = {} # Para gestionar objetos Barrera que se usan en el mismo turno
             self.ha_movido_en_turno = False # Flag para saber si el jugador ya ha tirado los dados en su turno
+            self.afk_task = None
+
+        def cancel_afk_task(self):
+            if self.afk_task:
+                self.afk_task.cancel()
+                self.afk_task = None
 
 
         @property
@@ -66,6 +72,25 @@ class GameSession:
 class GameManager:
     def __init__(self):
         self.active_games: dict[int, GameSession] = {}
+
+    async def handle_afk_timeout(self, game_id: int, user: str, expected_state: str):
+        await asyncio.sleep(15)
+        session = self.active_games.get(game_id)
+        if not session:
+            return
+
+        # Si el estado sigue siendo el que esperábamos, el jugador no ha actuado
+        if expected_state == "mover" and not getattr(session, "ha_movido_en_turno", False):
+            print(f"AFK Timeout: Saltando turno de {user}")
+            # Simular que el jugador se rinde / salta el turno
+            await self.process_action(game_id, user, "fin_turno", {})
+
+        elif expected_state == "minijuego_orden" and session.minijuego_actual:
+            print(f"AFK Timeout: Asignando peor puntuación a {user} en minijuego de orden")
+            # Asignar peor puntuación (0 para reflejos/tren, algo malo para otros)
+            # Depende de tu lógica, enviamos un score_minijuego simulado
+            if user not in session.minijuego_scores:
+                await self.process_action(game_id, user, "score_minijuego", {"score": 9999})
 
     async def connect(self, websocket: WebSocket, game_id: int, player_id: str):
         await websocket.accept()
@@ -186,6 +211,8 @@ class GameManager:
             
             # Comprobamos que el jugador existe y que el websocket que se ha desconectado es el último que se ha registrado
             if player_id in session.players and session.players.get(player_id) == websocket:
+                if session.board_state.get("order", {}).get(player_id) == session.board_state.get("turn"):
+                    session.cancel_afk_task()
                 
                 if session.status == "WAITING":
 
@@ -295,8 +322,11 @@ class GameManager:
                                 "nombre_jugador": first_player,
                                 "ronda": session.board_state["round"]
                             })
+                            session.cancel_afk_task()
+                            session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, first_player, "mover"))
 
             case "move_player":
+                session.cancel_afk_task()
                 # Obtenemos el orden del jugador para esta ronda
                 orden = session.board_state["order"].get(user)
 
@@ -859,6 +889,7 @@ class GameManager:
                 })
             
             case "fin_turno":
+                session.cancel_afk_task()
                 # SEGURIDAD: Ignorar si no es el turno de este jugador
                 if session.board_state["order"].get(user) != session.board_state["turn"]:
                     return
@@ -958,6 +989,8 @@ class GameManager:
                                 "nombre_jugador": playerId,
                                 "ronda": session.board_state["round"]
                             })
+                            session.cancel_afk_task()
+                            session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, playerId, "mover"))
                             turno_avanzado = True
                             break
 
