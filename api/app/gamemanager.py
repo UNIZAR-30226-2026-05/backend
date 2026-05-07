@@ -150,6 +150,7 @@ class GameManager:
             session.board_state["round"] = 1 # Ronda en la que nos encontramos
             session.board_state["order"] = {} # Orden de tirada para cada ronda
             session.board_state["penalty_turns"] = {} # Turnos de penalización que le quedan a cada jugador por caer en casillas de barrera
+            session.board_state["dice_levels"] = {}  # Nivel de dado actual (1=Oro, 2=Plata, 3=Bronce, 4=Normal)
             session.board_state["turn"] = 1     # guarda el turno en el que nos encontramos en la ronda
 
             session.poker["fase"] = None
@@ -165,6 +166,7 @@ class GameManager:
                     session.board_state["balances"][player_id] = 1
                     session.board_state["order"][player_id] = len(session.players)
                     session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
+                    session.board_state["dice_levels"][player_id] = 4   # Todos empiezan con dado normal (4)
 
         if reconnect:
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
@@ -821,14 +823,18 @@ class GameManager:
                     session.avance_extra += 1
                 
                 elif nombre_objeto == "Mejorar Dados":
-                    # El orden es 1-indexed (1, 2, 3, 4). 
-                    # El que tiene orden 1 ya tiene el dado de oro.
-                    orden_jugador = session.board_state["order"].get(user)
+                    # El nivel de dado es 1=Oro, 2=Plata, 3=Bronce, 4=Normal
+                    current_level = session.board_state["dice_levels"].get(user, 4)
                     
-                    if orden_jugador != 1: 
-                        # Mejoramos el dado (índice 0-3 para la función tirarDados)
+                    if current_level > 1: 
+                        # Mejoramos el dado (bajamos el índice hacia 1)
+                        new_level = current_level - 1
+                        session.board_state["dice_levels"][user] = new_level
+                        
+                        # Actualizamos los dados pre-tirados para este turno
+                        orden_jugador = session.board_state["order"].get(user)
                         idx_dados = orden_jugador - 1
-                        session.dados["izq"][idx_dados], session.dados["der"][idx_dados], _ = tirarDados(idx_dados)
+                        session.dados["izq"][idx_dados], session.dados["der"][idx_dados], _ = tirarDados(new_level)
                         
                         # Notificamos al jugador de que su dado ha mejorado
                         await session.broadcast({
@@ -917,8 +923,11 @@ class GameManager:
                     session.dados["der"] = []
                     sumas = []
                     for i in range(len(session.players)):
-
-                        dadoizq, dadoder, _ = tirarDados(i + 1)  # hacer tiradas y guardarlas
+                        turn_order = i + 1
+                        p_id = next(uid for uid, order in session.board_state["order"].items() if order == turn_order)
+                        level = session.board_state["dice_levels"].get(p_id, 4)
+                        
+                        dadoizq, dadoder, _ = tirarDados(level)
                         session.dados["izq"].append(dadoizq)
                         session.dados["der"].append(dadoder)
                         sumas.append(dadoizq + dadoder)
