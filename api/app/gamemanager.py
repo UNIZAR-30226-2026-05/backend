@@ -491,6 +491,7 @@ class GameManager:
                             actualizar_casilla(game_id, user, pos_objetivo)
                             actualizar_casilla(game_id, objetivo, pos_user)
 
+                            # Enviar primero al que inicia la acción
                             await session.broadcast({
                                 "type": "player_moved",
                                 "user": user,
@@ -498,6 +499,7 @@ class GameManager:
                                 "message": "Posiciones intercambiadas con otro jugador aleatoriamente"
                             })
 
+                            # Y justo después al objetivo (el frontend los emparejará)
                             await session.broadcast({
                                 "type": "player_moved",
                                 "user": objetivo,

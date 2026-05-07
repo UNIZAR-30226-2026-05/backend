@@ -358,6 +358,27 @@ def annadirAmigos(user1: str, user2: str):
         cursor.close()
         conn.close()
 
+@router.delete("/amigos")
+def eliminarAmigo(user1: str, user2: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        delete_query = """
+            DELETE FROM USUARIOS.AMIGOS 
+            WHERE (usuario1 = %s AND usuario2 = %s) 
+               OR (usuario1 = %s AND usuario2 = %s)
+        """
+        cursor.execute(delete_query, (user1, user2, user2, user1))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Error en la base de datos al eliminar amigo: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
 def enviarSolicitud(solicitante: str, solicitado: str):
     conn = get_db_connection()
     cursor = conn.cursor()
