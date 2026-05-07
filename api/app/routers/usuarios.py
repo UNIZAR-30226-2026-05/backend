@@ -111,7 +111,7 @@ def filtrar_usuarios(cadena: str):
 
     Devuelve una lista con {nombre: ...} que contienen la cadena especificada.
     """
-    if len(cadena) < 4:
+    if len(cadena) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="La búsqueda debe tener al menos 4 caracteres"
