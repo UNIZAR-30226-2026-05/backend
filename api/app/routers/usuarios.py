@@ -8,6 +8,7 @@ from typing import List
 import psycopg2
 import jwt
 from jwt import InvalidTokenError
+import asyncio
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/usuarios/login")    # Cambiado para probar en /docs endopoints, estaba solo como login
@@ -407,6 +408,8 @@ def aceptarSolicitud(aceptado: str, aceptador: str):
         """
         cursor.execute(delete_query, (aceptado, aceptador))
         
+        conn.commit()
+
         return
 
     except Exception as e:
@@ -429,6 +432,7 @@ def rechazarSolicitud(rechazado: str, rechazador: str):
         """
         cursor.execute(delete_query, (rechazado, rechazador))
         
+        conn.commit()
         return
 
     except Exception as e:
@@ -461,6 +465,16 @@ def obtener_invitaciones_usuario(player_id: str):
         conn.rollback() # Por si la base de datos se queda bloqueada
         return False
         
+    finally:
+        cursor.close()
+        conn.close()
+
+def existe_usuario(nombre: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT 1 FROM USUARIOS.USUARIO WHERE nombre = %s", (nombre,))
+        return cursor.fetchone() is not None
     finally:
         cursor.close()
         conn.close()
