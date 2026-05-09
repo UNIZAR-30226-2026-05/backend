@@ -347,7 +347,7 @@ def obtener_obj_ruleta():
 
         resultado = cursor.fetchall()
 
-        return [fila[0] for fila in resultado]
+        return [fila['nombre'] for fila in resultado]
     
     except psycopg2.IntegrityError as e:
         conn.rollback() 

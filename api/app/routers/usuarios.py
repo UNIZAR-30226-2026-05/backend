@@ -112,7 +112,7 @@ def filtrar_usuarios(cadena: str):
 
     Devuelve una lista con {nombre: ...} que contienen la cadena especificada.
     """
-    if len(cadena) < 4:
+    if len(cadena) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="La búsqueda debe tener al menos 4 caracteres"
@@ -359,6 +359,27 @@ def annadirAmigos(user1: str, user2: str):
         cursor.close()
         conn.close()
 
+@router.delete("/amigos")
+def eliminarAmigo(user1: str, user2: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        delete_query = """
+            DELETE FROM USUARIOS.AMIGOS 
+            WHERE (usuario1 = %s AND usuario2 = %s) 
+               OR (usuario1 = %s AND usuario2 = %s)
+        """
+        cursor.execute(delete_query, (user1, user2, user2, user1))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Error en la base de datos al eliminar amigo: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
 def enviarSolicitud(solicitante: str, solicitado: str):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -408,8 +429,6 @@ def aceptarSolicitud(aceptado: str, aceptador: str):
         """
         cursor.execute(delete_query, (aceptado, aceptador))
         
-        conn.commit()
-
         return
 
     except Exception as e:
@@ -458,12 +477,12 @@ def obtener_invitaciones_usuario(player_id: str):
         
         resultado_raw = cursor.fetchall()
         # Recuerda limpiar las tuplas para que el front reciba [ "nombre1", "nombre2" ]
-        return [fila[0] for fila in resultado_raw]
+        return [fila['solicitante'] for fila in resultado_raw]
 
     except Exception as e:
         print(f"Error en la base de datos al añadir amigo: {e}")
         conn.rollback() # Por si la base de datos se queda bloqueada
-        return False
+        return []
         
     finally:
         cursor.close()

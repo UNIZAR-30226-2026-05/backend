@@ -3,7 +3,7 @@ import asyncio
 from funcionesAuxiliaresPartida import *
 
 # Definición vagones del tren
-vagones_normales = [13, 10, 12, 9]
+vagones_normales = [13, 11, 14, 8]
 vagones_especiales = [6, 16]
 
 # Definición de la baraja estándar de póker
@@ -150,11 +150,27 @@ async def iniciar_poker_real(session):
     session.poker["bote"] = 0
     session.poker["jugadores_activos"] = list(jugadores_ids)
     session.poker["apuesta_maxima_ronda"] = 0
+    session.poker["han_actuado"] = []
     session.poker["turno"] = 0
 
     for p_id in jugadores_ids:
         session.poker["apuesta_jugador_ronda"][p_id] = 0
+        session.board_state["balances"][p_id] -= 5
+        session.poker["bote"] += 5
+
+    await session.broadcast({
+        "type": "balances_changed",
+        "balances": session.board_state["balances"]
+    })
         
+    await session.broadcast({
+        "type": "poker_nueva_fase",
+        "fase": "pre-flop",
+        "bote_actual": session.poker["bote"],
+        "mesa_visible": [],
+        "jugadores_activos": session.poker["jugadores_activos"]
+    })
+
     primero = session.poker["jugadores_activos"][0]
 
     # Enviamos a cada jugador sus cartas y les pedimos su primera acción (Pre-flop)
@@ -164,7 +180,9 @@ async def iniciar_poker_real(session):
             await ws.send_json({
                 "type": "poker_inicio_ronda",
                 "fase": "pre-flop",
-                "mis_cartas": [carta_a_dict(c) for c in manos[i]]
+                "mis_cartas": [carta_a_dict(c) for c in manos[i]],
+                "bote_actual": session.poker["bote"],
+                "jugadores_activos": session.poker["jugadores_activos"]
             })
 
     await session.broadcast({
@@ -173,6 +191,10 @@ async def iniciar_poker_real(session):
     })
 
 async def avanzar_fase_poker(session):
+    session.poker["han_actuado"] = []
+    detalles = session.minijuego_detalles
+    if not detalles or "mesa_oculta" not in detalles:
+        return # Salir si el juego ya terminó o no está inicializado
 
     for p_id in session.minijuego_participantes:
         session.poker["bote"] += session.poker["apuesta_jugador_ronda"][p_id]
@@ -211,16 +233,6 @@ async def avanzar_fase_poker(session):
         detalles["mesa_visible"].extend(nuevas_cartas)
         
     elif fase_actual == "flop":
-        session.poker["fase"] = "turn"
-        nuevas_cartas = [detalles["mesa_oculta"][3]]
-        detalles["mesa_visible"].extend(nuevas_cartas)
-        
-    elif fase_actual == "turn":
-        session.poker["fase"] = "river"
-        nuevas_cartas = [detalles["mesa_oculta"][4]]
-        detalles["mesa_visible"].extend(nuevas_cartas)
-        
-    elif fase_actual == "river":
         # Si llegamos aquí, toca enseñar cartas y ver quién gana de los que quedan
         await resolver_showdown_poker(session)
         return
@@ -302,15 +314,6 @@ async def resolver_showdown_poker(session):
         "balances": session.board_state["balances"]
     })
 
-    # Limpieza total del minijuego
-    session.minijuego_actual = None
-    session.poker["fase"] = None
-    session.poker["bote"] = 0
-    session.poker["jugadores_activos"] = []
-    session.poker_apuesta_actual = 0
-    session.poker_apuestas_acumuladas = {}
-    session.minijuego_detalles = {}
-
     session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
     turno = session.poker["turno"]
     le_toca = session.poker["jugadores_activos"][turno]
@@ -319,6 +322,15 @@ async def resolver_showdown_poker(session):
         "type": "turno_poker",
         "nombre_jugador": le_toca
     })
+
+    # Limpieza total del minijuego
+    session.minijuego_actual = None
+    session.poker["fase"] = None
+    session.poker["bote"] = 0
+    session.poker["jugadores_activos"] = []
+    session.poker_apuesta_actual = 0
+    session.poker_apuestas_acumuladas = {}
+    session.minijuego_detalles = {}
 
 # Dado un indice devuelve la tupla de la carta correspondiente en la baraja. Ej: 0 -> ('as', 'picas'), 51 -> ('rey', 'diamantes')
 def indexar_carta(carta):
@@ -458,7 +470,7 @@ def evaluar_jugada(mano):
 
 def sortearManoPoker(numPlayers: int):
 
-    total_cartas_necesarias = (numPlayers * 2) + 5
+    total_cartas_necesarias = (numPlayers * 2) + 3
     if total_cartas_necesarias > 52:
         raise ValueError("Demasiados jugadores para una sola baraja.")
 
@@ -471,7 +483,7 @@ def sortearManoPoker(numPlayers: int):
         mano = [cartas_repartidas[i*2], cartas_repartidas[i*2 + 1]]
         manos_jugadores.append(mano)
         
-    mesa = cartas_repartidas[-5:]
+    mesa = cartas_repartidas[-3:]
     
     return manos_jugadores, mesa
 
@@ -484,17 +496,15 @@ def sortear_vagones():
     vagones = []
     # Primero sorteamos los vagones normales
     for _ in range(3):  
-        # Generamos un índice aleatorio válido
-        indice = random.randrange(len(vagones_normales))
+        # Obtenemos la capacidad de un vagón aleatorio
+        capacidad = random.choice(vagones_normales)
+        total_pasajeros += capacidad
 
-        # Obtenemos el valor en esa posición
-        total_pasajeros += vagones_normales[indice]
-
-        vagones.append(indice) # Añadimos al vector de índices el número del vagón sorteado
+        vagones.append(capacidad) # Añadimos al vector la capacidad del vagón sorteado
 
     # Para el último vagón, sorteamos entre los especiales
-    indice = random.randrange(len(vagones_especiales))
-    total_pasajeros += vagones_especiales[indice]
-    vagones.append(indice)
+    capacidad_especial = random.choice(vagones_especiales)
+    total_pasajeros += capacidad_especial
+    vagones.append(capacidad_especial)
 
     return vagones, total_pasajeros
