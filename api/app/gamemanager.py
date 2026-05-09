@@ -409,17 +409,22 @@ class GameManager:
 
                 if tipo_casilla == 'mini':
                     # Tenemos que avisar al frontend del minijuego que ha caído
-                    await session.broadcast({
+                    # Para el Dilema, calculamos los participantes antes del broadcast para incluirlos
+                    casilla_broadcast: dict = {
                         "type": "minijuego_casilla",
                         "user": user,
                         "minijuego": extra,
                         "descripcion": obtener_descripcion_minijuego_casilla(extra)
-                    })
+                    }
+                    if extra == 'Dilema del Prisionero':
+                        jugadores_en_casilla_pre = [p_id for p_id, pos in session.board_state["positions"].items() if pos == nueva_casilla]
+                        casilla_broadcast["jugadores"] = jugadores_en_casilla_pre
+                    await session.broadcast(casilla_broadcast)
 
                     # Distintas acciones para cada minijuego
                     if extra == 'Dilema del Prisionero':
-                        # Verificar si hay otro jugador en la misma casilla
-                        jugadores_en_casilla = [p_id for p_id, pos in session.board_state["positions"].items() if pos == nueva_casilla]
+                        # Reutilizamos la lista ya calculada antes del broadcast
+                        jugadores_en_casilla = jugadores_en_casilla_pre
                         if len(jugadores_en_casilla) == 2:  # Solo si hay exactamente dos jugadores (1vs1)
                             for p_id in jugadores_en_casilla:
                                 await session.players[p_id].send_json({
