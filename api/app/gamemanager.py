@@ -74,7 +74,7 @@ class GameManager:
         self.active_games: dict[int, GameSession] = {}
 
     async def handle_afk_timeout(self, game_id: int, user: str, expected_state: str):
-        await asyncio.sleep(15)
+        await asyncio.sleep(25)
         session = self.active_games.get(game_id)
         if not session:
             return
