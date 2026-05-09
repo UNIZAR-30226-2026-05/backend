@@ -428,7 +428,7 @@ def aceptarSolicitud(aceptado: str, aceptador: str):
             DELETE FROM USUARIOS.SOLICITUD WHERE solicitante = %s and solicitado = %s
         """
         cursor.execute(delete_query, (aceptado, aceptador))
-        
+        conn.commit()
         return
 
     except Exception as e:
