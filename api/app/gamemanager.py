@@ -826,6 +826,11 @@ class GameManager:
                     "type": "balances_changed",
                     "balances": session.board_state["balances"]
                 })
+
+                await session.broadcast({
+                    "type": "objeto_comprado",
+                    "objeto": nombre_objeto
+                })
                 
                 if nombre_objeto == "Avanzar Casillas":
                     session.avance_extra += 1
