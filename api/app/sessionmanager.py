@@ -128,9 +128,18 @@ class SessionManager:
             case "accept_request":
                 target_player = payload.get("player_id")
                 aceptarSolicitud(target_player, user)
+                invitaciones_pendientes = obtener_invitaciones_usuario(user)
+
                 await self.send_personal_message(target_player, {
-                        "type": "acepted_request",
-                        "username": user
+                        "type": "online_friends_list",
+                        "friends": amigos_conectados  
+                    })
+                
+                invitaciones_pendientes = obtener_invitaciones_usuario(target_player)
+
+                await self.send_personal_message(target_player, {
+                        "type": "online_friends_list",
+                        "friends": amigos_conectados  
                     })
 
             case "reject_request":
