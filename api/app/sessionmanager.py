@@ -11,12 +11,6 @@ class SessionManager:
         self.state_users[player_id] = "Lobby"
         # Avisamos a sus amigos de que está online
         await self.broadcast_status_to_friends(player_id, "online")
-        invitaciones_pendientes = obtener_invitaciones_usuario(player_id)
-
-        await self.send_personal_message(player_id, {
-            "type": "friend_requests_list",
-            "lista": invitaciones_pendientes
-        })
         
     async def disconnect(self, player_id: str):
         if player_id in self.active_users:
@@ -72,7 +66,13 @@ class SessionManager:
                     await self.send_personal_message(user, {"error": "El usuario no está conectado"})
             case "accept_invite":
                 target_friend = payload.get("friend_id")
-                game_id_to_join = payload.get("game_id") 
+                game_id_to_join = payload.get("game_id")
+            case "reject_invite":
+                target_friend = payload.get("friend_id")
+                await self.send_personal_message(target_player, {
+                    "type": "reject_invite",
+                    "username": user 
+                })
 
             case "get_online_friends":
                 amigos_db = obtener_todos_amigos_user(user)
@@ -86,12 +86,18 @@ class SessionManager:
                     "type": "online_friends_list",
                     "friends": amigos_conectados  
                 })
+            case "get_pending_request":
+                invitaciones_pendientes = obtener_invitaciones_usuario(player_id)
 
+                await self.send_personal_message(player_id, {
+                    "type": "friend_requests_list",
+                    "lista": invitaciones_pendientes
+                })
             case "send_request":
                 target_player = payload.get("player_id")
-                list_payers = obtener_todos_usuarios()
+                existe_usuario = existe_usuario(target_player)
 
-                if target_player not in list_payers:
+                if existe_usuario:
                     await self.send_personal_message(user, {
                         "type": "user_not_exists",
                         "username": target_player 
@@ -122,6 +128,10 @@ class SessionManager:
             case "accept_request":
                 target_player = payload.get("player_id")
                 aceptarSolicitud(target_player, user)
+                await self.send_personal_message(target_player, {
+                        "type": "acepted_request",
+                        "username": user
+                    })
 
             case "reject_request":
                 target_player = payload.get("player_id")
