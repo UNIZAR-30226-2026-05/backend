@@ -69,7 +69,7 @@ class SessionManager:
                 game_id_to_join = payload.get("game_id")
             case "reject_invite":
                 target_friend = payload.get("friend_id")
-                await self.send_personal_message(target_player, {
+                await self.send_personal_message( target_friend, {
                     "type": "reject_invite",
                     "username": user 
                 })
@@ -95,9 +95,9 @@ class SessionManager:
                 })
             case "send_request":
                 target_player = payload.get("player_id")
-                existe_usuario = existe_usuario(target_player)
+                existe = await existe_usuario(target_player)
 
-                if existe_usuario:
+                if not existe:
                     await self.send_personal_message(user, {
                         "type": "user_not_exists",
                         "username": target_player 

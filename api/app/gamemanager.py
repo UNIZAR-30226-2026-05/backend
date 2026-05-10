@@ -599,7 +599,13 @@ class GameManager:
                         if session.board_state["balances"][penalizado] > 0: # Si tiene mínimo 1 moneda se la quitamos
                             session.board_state["balances"][user] += 1
                             session.board_state["balances"][penalizado] -= 1
-                        
+                            
+                            await session.broadcast({
+                                "type": "robar_banquero",
+                                "nombre": penalizado,
+                                "monedas": 1
+                            })
+
                             await session.broadcast({
                                 "type": "balances_changed",
                                 "balances": session.board_state["balances"]
@@ -616,6 +622,13 @@ class GameManager:
                         if session.board_state["balances"][penalizado] > 1: # Si tiene mínimo 2 monedas se la quitamos
                             session.board_state["balances"][user] += 2
                             session.board_state["balances"][penalizado] -= 2
+
+                            await session.broadcast({
+                                "type": "robar_banquero",
+                                "nombre": penalizado,
+                                "monedas": 2
+                            })
+
                             await session.broadcast({
                                 "type": "balances_changed",
                                 "balances": session.board_state["balances"]
@@ -624,6 +637,13 @@ class GameManager:
                         elif session.board_state["balances"][penalizado] == 1: # Si solo tiene 1 moneda se la quitamos
                             session.board_state["balances"][user] += 1
                             session.board_state["balances"][penalizado] -= 1
+
+                            await session.broadcast({
+                                "type": "robar_banquero",
+                                "nombre": penalizado,
+                                "monedas": 1
+                            })
+                            
                             await session.broadcast({
                                 "type": "balances_changed",
                                 "balances": session.board_state["balances"]

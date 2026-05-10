@@ -488,7 +488,7 @@ def obtener_invitaciones_usuario(player_id: str):
         cursor.close()
         conn.close()
 
-def existe_usuario(nombre: str) -> bool:
+def _existe_usuario_sync(nombre: str):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -497,6 +497,10 @@ def existe_usuario(nombre: str) -> bool:
     finally:
         cursor.close()
         conn.close()
+
+async def existe_usuario(nombre: str):
+
+    return await asyncio.to_thread(_existe_usuario_sync, nombre)
 
 # ---------------------------------------------------------
 # CAMBIO CONTRASEÑA (POST)
