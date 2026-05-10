@@ -87,9 +87,9 @@ class SessionManager:
                     "friends": amigos_conectados  
                 })
             case "get_pending_request":
-                invitaciones_pendientes = obtener_invitaciones_usuario(player_id)
+                invitaciones_pendientes = obtener_invitaciones_usuario(user)
 
-                await self.send_personal_message(player_id, {
+                await self.send_personal_message(user, {
                     "type": "friend_requests_list",
                     "lista": invitaciones_pendientes
                 })
@@ -150,7 +150,7 @@ class SessionManager:
                     "type": "online_friends_list",
                     "friends": amigos_conectados  
                 })
-                
+
             case "reject_request":
                 target_player = payload.get("player_id")
                 rechazarSolicitud(target_player, user)
