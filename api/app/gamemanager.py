@@ -29,7 +29,6 @@ class GameSession:
             self.board_state = {}
             self.dados: dict[Literal["izq", "der"], list[int]] = {"izq": [], "der": []}
             self.players_id = []
-            self.player_reconect: dict[str, WebSocket] = {}
             # Minijuegos
             self.minijuego_actual = None
             self.minijuego_tipo = None  # "orden" o "casilla" 
@@ -174,11 +173,18 @@ class GameManager:
 
         if reconnect:
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
-            session.player_reconect[player_id] = websocket 
             await websocket.send_json({
                 "type": "reconnect_success",
                 "game_status": session.status,
-                "current_board": session.board_state,                
+                "current_board": session.board_state,
+                
+                # Buscamos en la sesión si hay algún minijuego activo ahora (si no hay ninguno, envía None)
+                "minijuego_actual": getattr(session, "minijuego_actual", None),
+                
+                # Comprueba si el nombre del jugador está dentro de la lista de participantes de ese minijuego
+                # Normalmente simepr devolvemos False, pero por si al final queremos dejar pasar algún caso 
+                # (como una reconexión corta por flalo wifi)
+                "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
             })
         else:
             # Lógica normal para nuevos jugadores
@@ -190,7 +196,6 @@ class GameManager:
 
             if session.is_full:
                 session.status = "PLAYING"
-                await asyncio.sleep(3)
                 await session.broadcast({
                     "type": "game_start",
                     "message": "Empieza el juego"
@@ -943,7 +948,7 @@ class GameManager:
                         "penalizacion": session.board_state["penalty_turns"][user]
                     })
 
-                if session.board_state["turn"] == len(session.players) - len(session.player_reconect):
+                if session.board_state["turn"] == len(session.players):
                     session.board_state["turn"] = 0 # Lo ponemos a 0 para que al sumarle 1 después sea 1
                     session.board_state["round"] += 1 
 
@@ -989,12 +994,6 @@ class GameManager:
                         "type": "round_ended",
                         "round": session.board_state["round"]
                     })
-
-                    for p_id, ws in session.player_reconect.items():
-                        await ws.send_json({
-                            "type": "reconnect_mensaje"
-                        })
-                    session.player_reconect.clear()
 
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
