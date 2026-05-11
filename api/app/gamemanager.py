@@ -79,16 +79,23 @@ class GameManager:
         if not session:
             return
 
-        # Si el estado sigue siendo el que esperábamos, el jugador no ha actuado
+        # Verificar que el user sigue siendo el jugador activo
+        turno_actual = session.board_state.get("turn")
+        orden_user = session.board_state.get("order", {}).get(user)
+        if orden_user != turno_actual:
+            print(f"AFK Timeout: {user} ya no es el jugador activo (orden={orden_user}, turno={turno_actual}). Ignorando.")
+            return
+
         if expected_state == "mover" and not getattr(session, "ha_movido_en_turno", False):
-            print(f"AFK Timeout: Saltando turno de {user}")
-            # Simular que el jugador se rinde / salta el turno
+            print(f"AFK Timeout (mover): Saltando turno de {user}")
+            await self.process_action(game_id, user, "fin_turno", {})
+
+        elif expected_state == "fin_turno" and getattr(session, "ha_movido_en_turno", False):
+            print(f"AFK Timeout (fin_turno): Forzando fin de turno para {user}")
             await self.process_action(game_id, user, "fin_turno", {})
 
         elif expected_state == "minijuego_orden" and session.minijuego_actual:
             print(f"AFK Timeout: Asignando peor puntuación a {user} en minijuego de orden")
-            # Asignar peor puntuación (0 para reflejos/tren, algo malo para otros)
-            # Depende de tu lógica, enviamos un score_minijuego simulado
             if user not in session.minijuego_scores:
                 await self.process_action(game_id, user, "score_minijuego", {"score": 9999})
 
@@ -367,6 +374,9 @@ class GameManager:
                 actualizar_casilla(game_id, user, nueva_casilla)
                 
                 session.ha_movido_en_turno = True
+                # Lanzamos un timer de 25s para que el jugador mande fin_turno; si no lo hace, lo forzamos
+                session.cancel_afk_task()
+                session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, user, "fin_turno"))
                 await session.broadcast({
                     "type": "player_moved",
                     "user": user,
