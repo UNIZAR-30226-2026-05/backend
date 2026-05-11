@@ -45,7 +45,14 @@ class GameSession:
 
         def cancel_afk_task(self):
             if self.afk_task:
-                self.afk_task.cancel()
+                # Si la tarea que intentamos cancelar es la misma que está ejecutando este código,
+                # no la cancelamos (se está suicidando), simplemente limpiamos la referencia.
+                try:
+                    if asyncio.current_task() != self.afk_task:
+                        self.afk_task.cancel()
+                except RuntimeError:
+                    # Fuera de un loop de eventos (no debería pasar aquí)
+                    self.afk_task.cancel()
                 self.afk_task = None
 
 
@@ -329,6 +336,7 @@ class GameManager:
                         # Iniciamos el primer turno (el jugador con posición 1)
                         first_player = next((p_id for p_id, pos in session.board_state["order"].items() if pos == 1), None)
                         if first_player:
+                            session.board_state["turn"] = 1
                             await session.broadcast({
                                 "type": "turno_de",
                                 "nombre_jugador": first_player,
@@ -338,7 +346,6 @@ class GameManager:
                             session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, first_player, "mover"))
 
             case "move_player":
-                session.cancel_afk_task()
                 # Obtenemos el orden del jugador para esta ronda
                 orden = session.board_state["order"].get(user)
 
@@ -360,6 +367,9 @@ class GameManager:
                         "error": f"No es tu turno. Le toca al jugador {turno_actual}"
                     })
                     return
+
+                # Solo cancelamos el timer si la validación es correcta
+                session.cancel_afk_task()
 
                 dado1 = session.dados["izq"][orden - 1]
                 dado2 = session.dados["der"][orden - 1]
