@@ -82,7 +82,13 @@ class GameManager:
 
     async def handle_afk_timeout(self, game_id: int, user: str, expected_state: str):
         try:
-            tiempo_espera = 12 if expected_state == "select_mini" else 25
+            if expected_state == "select_mini":
+                tiempo_espera = 12
+            elif expected_state in ["score_minijuego", "poker_accion"]:
+                tiempo_espera = 25
+            else:
+                tiempo_espera = 25
+                
             await asyncio.sleep(tiempo_espera)
             
             session = self.active_games.get(game_id)
@@ -98,14 +104,39 @@ class GameManager:
                         desc = elegido.get("descripcion", "") if isinstance(elegido, dict) else (elegido[1] if len(elegido) > 1 else "")
                         print(f"DEBUG: Timeout Videojugador. Forzando elección: {nombre}")
                         await self.process_action(game_id, user, "select_mini", {"minijuego": nombre, "descripcion": desc})
+            
+            elif expected_state == "score_minijuego":
+                if getattr(session, "minijuego_actual", None) is not None:
+                    for p_id in list(session.minijuego_participantes):
+                        if p_id not in session.minijuego_scores:
+                            peor_puntuacion = 0
+                            if session.minijuego_actual == 'Reflejos':
+                                peor_puntuacion = 99999
+                            elif session.minijuego_actual == 'Mayor o Menor':
+                                peor_puntuacion = -1
+                            elif session.minijuego_tipo == 'orden':
+                                peor_puntuacion = 99999
+                            elif session.minijuego_actual == 'Dilema del Prisionero':
+                                peor_puntuacion = 'cooperar'
+                            elif session.minijuego_actual == 'Doble o Nada':
+                                peor_puntuacion = 0
+                            
+                            print(f"DEBUG: Timeout Minijuego. Forzando peor score para {p_id}")
+                            await self.process_action(game_id, p_id, "score_minijuego", {"score": peor_puntuacion})
+                            
+            elif expected_state == "poker_accion":
+                if getattr(session, "minijuego_actual", None) == "Mano de Poker":
+                    if "jugadores_activos" in session.poker and user in session.poker["jugadores_activos"]:
+                        if session.poker.get("turnoDe") == user or session.poker["jugadores_activos"][session.poker["turno"]] == user:
+                            print(f"DEBUG: Timeout Poker. Forzando retirada para {user}")
+                            await self.process_action(game_id, user, "poker_accion", {"decision": "retirarse", "cantidad": 0})
+                            
             else:
                 turno_actual = session.board_state.get("turn")
                 orden_user = session.board_state.get("order", {}).get(user)
                 print(f"DEBUG: Ejecutando salto de turno para {user}")
                 await self.process_action(game_id, user, "saltar_turno")
-
         except asyncio.CancelledError:
-            # La tarea fue cancelada porque el jugador movió a tiempo
             pass
 
     async def connect(self, websocket: WebSocket, game_id: int, player_id: str):
@@ -516,6 +547,8 @@ class GameManager:
                         session.minijuego_actual = extra
                         session.minijuego_tipo = "casilla"
                         session.minijuego_participantes = jugadores_en_casilla
+                        session.cancel_afk_task()
+                        session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, "all", "score_minijuego"))
                     
                     elif extra == "Doble o Nada":
                         session.minijuego_actual = extra
@@ -526,6 +559,8 @@ class GameManager:
                             "minijuego": extra,
                             "descripcion": obtener_descripcion_minijuego_casilla(extra)
                         })
+                        session.cancel_afk_task()
+                        session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, user, "score_minijuego"))
                     elif extra == "Mano de Poker":
                         session.minijuego_actual = extra
                         session.minijuego_tipo = "casilla"
@@ -548,6 +583,10 @@ class GameManager:
                                 "descripcion": obtener_descripcion_minijuego_casilla(extra)
                             })
                             await iniciar_poker_real(session)
+                            if len(session.minijuego_participantes) >= 2:
+                                primero = session.poker["jugadores_activos"][0]
+                                session.cancel_afk_task()
+                                session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, primero, "poker_accion"))
 
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
@@ -671,6 +710,8 @@ class GameManager:
                         # que se han repartido a los jugadores
                         "detalles": session.minijuego_detalles
                     })
+                    session.cancel_afk_task()
+                    session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, "all", "score_minijuego"))
                         
             case "banquero":
                 if session.board_state["characters"].get(user) == "Banquero":
@@ -843,6 +884,11 @@ class GameManager:
                     "type": "turno_poker",
                     "nombre_jugador": siguiente_jugador
                 })
+
+                if getattr(session, "minijuego_actual", None) == "Mano de Poker" and session.poker.get("jugadores_activos"):
+                    siguiente_jugador = session.poker["jugadores_activos"][session.poker["turno"]]
+                    session.cancel_afk_task()
+                    session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, siguiente_jugador, "poker_accion"))
 
             case "debug_force_poker":
                 # Inyectar monedas primero para que puedan jugar
