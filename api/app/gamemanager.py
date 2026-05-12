@@ -122,7 +122,8 @@ class GameManager:
 
         session = self.active_games[game_id]
 
-        session.players_id.append(player_id)
+        if player_id not in session.players_id:
+            session.players_id.append(player_id)
 
         reconnect = player_id in session.players
 
@@ -226,8 +227,6 @@ class GameManager:
             
             # Comprobamos que el jugador existe y que el websocket que se ha desconectado es el último que se ha registrado
             if player_id in session.players and session.players.get(player_id) == websocket:
-                if session.board_state.get("order", {}).get(player_id) == session.board_state.get("turn"):
-                    session.cancel_afk_task()
                 
                 if session.status == "WAITING":
 
@@ -259,6 +258,11 @@ class GameManager:
                 elif session.status == "PLAYING":
                     # Marcamos como desconectado para que no reciba mensajes
                     session.players[player_id] = None
+
+                    orden_desconectado = session.board_state.get("order", {}).get(player_id)
+                    if orden_desconectado == session.board_state.get("turn"):
+                        print(f"DEBUG: El jugador activo {player_id} se fue. Forzando salto.")
+                        asyncio.create_task(self.process_action(game_id, player_id, "saltar_turno"))
 
                     await session.broadcast({
                         "type": "not_playing",
