@@ -192,6 +192,13 @@ class GameManager:
 
                     if turno_actual_db > 0:
                         session_init.status = "PLAYING"
+                        # Generar dados de emergencia para la ronda actual en curso
+                        for p in jugadores_db:
+                            p_name = p["nombre_jugador"]
+                            level = session_init.board_state["dice_levels"].get(p_name, 4)
+                            dadoizq, dadoder, _ = tirarDados(level)
+                            session_init.dados["izq"].append(dadoizq)
+                            session_init.dados["der"].append(dadoder)
                     elif len(jugadores_db) == MAX_JUGADORES:
                         session_init.status = "PLAYING"
             finally:
