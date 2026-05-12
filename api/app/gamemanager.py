@@ -173,12 +173,34 @@ class GameManager:
             session.poker["turno"] = 0
             
         if player_id not in session.board_state["positions"]:
-                    session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
-                    session.board_state["balances"][player_id] = 1
-                    session.board_state["order"][player_id] = len(session.players)
-                    session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
-                    session.board_state["dice_levels"][player_id] = 4   # Todos empiezan con dado normal (4)
-                    session.penalizacion_pendiente[player_id] = 0 # Inicializamos la penalización pendiente a 0 para el jugador que se conecta
+            from database import get_db_connection
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "SELECT casilla, dinero, personaje, numero FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s AND id_partida = %s",
+                    (player_id, game_id)
+                )
+                datos_db = cursor.fetchone()
+            finally:
+                cursor.close()
+                conn.close()
+
+            if datos_db:
+                session.board_state["positions"][player_id] = datos_db["casilla"]
+                session.board_state["balances"][player_id] = datos_db["dinero"]
+                session.board_state["order"][player_id] = datos_db["numero"]
+                if datos_db["personaje"]:
+                    session.board_state["characters"][player_id] = datos_db["personaje"]
+            else:
+                session.board_state["positions"][player_id] = 0
+                session.board_state["balances"][player_id] = 1
+                session.board_state["order"][player_id] = len(session.players)
+
+            # Mantener las inicializaciones auxiliares necesarias
+            session.board_state["penalty_turns"][player_id] = 0
+            session.board_state["dice_levels"][player_id] = 4
+            session.penalizacion_pendiente[player_id] = 0
 
 
         if reconnect:

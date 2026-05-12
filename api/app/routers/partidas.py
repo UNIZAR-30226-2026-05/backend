@@ -45,38 +45,27 @@ def obtener_partidas_activas():
 # PARTIDA ACTIVA DEL JUGADOR (GET) - Protegido con token
 # ---------------------------------------------------------
 @router.get("/mi_partida")
-def mi_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
+def obtener_mi_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
     """
-    Devuelve el ID y el estado de la partida activa en la que está el usuario autenticado.
-    Si no está en ninguna partida activa, devuelve 404.
+    Comprueba si el usuario está actualmente en una partida activa y devuelve su ID y estado.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Consultamos tanto el ID como el estado de la partida
         query = """
-            SELECT p.id_partida, p.estado 
-            FROM PARTIDAS.JUGANDO p 
-            WHERE p.nombre_jugador = %s 
-            LIMIT 1
+            SELECT j.id_partida, p.turno 
+            FROM PARTIDAS.JUGANDO j
+            JOIN PARTIDAS.PARTIDA_ACTIVA p ON j.id_partida = p.id
+            WHERE j.nombre_jugador = %s
         """
         cursor.execute(query, (usuario_actual,))
         resultado = cursor.fetchone()
-
-        if not resultado:
-            raise HTTPException(status_code=404, detail="No estás en ninguna partida activa")
-
-        return {
-            "game_id": resultado['id_partida'],
-            "estado": resultado['estado']
-        }
-
-    except HTTPException:
-        raise
-
+        if resultado:
+            estado = "WAITING" if resultado["turno"] == 0 else "PLAYING"
+            return {"game_id": resultado["id_partida"], "estado": estado}
+        return {"game_id": None, "estado": None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
     finally:
         cursor.close()
         conn.close()
