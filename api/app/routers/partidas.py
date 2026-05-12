@@ -41,6 +41,37 @@ def obtener_partidas_activas():
         raise HTTPException(status_code=500, detail=str(e))
 
 # ---------------------------------------------------------
+# PARTIDA ACTIVA DEL JUGADOR (GET) - Protegido con token
+# ---------------------------------------------------------
+@router.get("/mi_partida", response_model=int)
+def mi_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
+    """
+    Devuelve el ID de la partida activa en la que está el usuario autenticado.
+    Si no está en ninguna partida activa, devuelve 404.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = "SELECT id_partida FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s LIMIT 1"
+        cursor.execute(query, (usuario_actual,))
+        resultado = cursor.fetchone()
+
+        if not resultado:
+            raise HTTPException(status_code=404, detail="No estás en ninguna partida activa")
+
+        return resultado['id_partida']
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
+
+# ---------------------------------------------------------
 # CREAR PARTIDA (POST)
 # ---------------------------------------------------------
 @router.post("/crear_partida", status_code=status.HTTP_201_CREATED, response_model=int)

@@ -122,33 +122,32 @@ class GameManager:
 
         session = self.active_games[game_id]
 
-        if player_id not in session.players_id:
+        # Consideramos reconexión si el jugador ya estaba en la lista de IDs o tiene posición en el tablero
+        reconnect = player_id in session.players_id or (
+            "positions" in session.board_state and player_id in session.board_state["positions"]
+        )
+
+        if not reconnect:
+            if session.is_full or session.status != "WAITING":
+                eliminar_jugador_partida(player_id, game_id)
+                await websocket.send_json({"error": "La partida está llena o ya ha comenzado"})
+                await websocket.close()
+                return False
+            # Si es nuevo y hay hueco, lo añadimos
             session.players_id.append(player_id)
 
-        reconnect = player_id in session.players
-
-        # Verificar que el usuario no esta conectado desde otro dispositvo
-
-        if reconnect:
+        # Si ya estaba conectado desde otro socket, lo cerramos
+        if player_id in session.players:
             old_socket = session.players[player_id]
             if old_socket is not None:
-                try:            
-
+                try:
                     await old_socket.send_json({
                         "type": "force_disconnect",
-                        "message": "Nueva conexion desde otro dispositivo"
+                        "message": "Nueva conexión desde otro dispositivo"
                     })
                     await old_socket.close()
                 except:
                     pass
-
-        # Verficar que la partida no esta llena ni empezada
-
-        if not reconnect and (session.is_full or session.status != "WAITING"):
-            eliminar_jugador_partida(player_id, game_id) # Eliminamos al jugador de la partida en la BD para que no haya problemas
-            await websocket.send_json({"error": "La partida esta llena"})
-            await websocket.close()
-            return False
 
         session.players[player_id] = websocket
 
@@ -195,7 +194,11 @@ class GameManager:
                 # Comprueba si el nombre del jugador está dentro de la lista de participantes de ese minijuego
                 # Normalmente simepr devolvemos False, pero por si al final queremos dejar pasar algún caso 
                 # (como una reconexión corta por flalo wifi)
-                "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
+                "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", []),
+
+                # Flag para que el frontend muestre pantalla de "Reconectando..." y bloquee interacciones
+                # hasta recibir el siguiente turno_de o ini_minijuego
+                "sincronizando": True
             })
         else:
             # Lógica normal para nuevos jugadores
