@@ -1047,7 +1047,7 @@ class GameManager:
                     total_jugadores = len(session.players_id)
                     turno_avanzado = False
                     
-                    while session.board_state["turn"] < total_jugadores:
+                    while session.board_state["turn"] <= total_jugadores:
                         session.board_state["turn"] += 1
                         session.ha_movido_en_turno = False
                         session.avance_extra = 0
