@@ -82,24 +82,61 @@ class GameManager:
 
     async def handle_afk_timeout(self, game_id: int, user: str, expected_state: str):
         try:
-            await asyncio.sleep(25) # Tiempo de espera
+            if expected_state == "select_mini":
+                tiempo_espera = 12
+            elif expected_state in ["score_minijuego", "poker_accion"]:
+                tiempo_espera = 25
+            else:
+                tiempo_espera = 25
+                
+            await asyncio.sleep(tiempo_espera)
             
             session = self.active_games.get(game_id)
             if not session or session.status != "PLAYING":
                 return
 
-            turno_actual = session.board_state.get("turn")
-            orden_user = session.board_state.get("order", {}).get(user)
-
-            #if orden_user != turno_actual:
-            #    return 
-
-            # Disparamos el salto de turno
-            print(f"DEBUG: Ejecutando salto de turno para {user}")
-            await self.process_action(game_id, user, "saltar_turno")
-
+            if expected_state == "select_mini":
+                if getattr(session, "minijuego_actual", None) is None:
+                    opciones = getattr(session, "opciones_videojugador", None)
+                    if opciones:
+                        elegido = opciones[0]
+                        nombre = elegido["nombre"] if isinstance(elegido, dict) else elegido[0]
+                        desc = elegido.get("descripcion", "") if isinstance(elegido, dict) else (elegido[1] if len(elegido) > 1 else "")
+                        print(f"DEBUG: Timeout Videojugador. Forzando elección: {nombre}")
+                        await self.process_action(game_id, user, "select_mini", {"minijuego": nombre, "descripcion": desc})
+            
+            elif expected_state == "score_minijuego":
+                if getattr(session, "minijuego_actual", None) is not None:
+                    for p_id in list(session.minijuego_participantes):
+                        if p_id not in session.minijuego_scores:
+                            peor_puntuacion = 0
+                            if session.minijuego_actual == 'Reflejos':
+                                peor_puntuacion = 99999
+                            elif session.minijuego_actual == 'Mayor o Menor':
+                                peor_puntuacion = -1
+                            elif session.minijuego_tipo == 'orden':
+                                peor_puntuacion = 99999
+                            elif session.minijuego_actual == 'Dilema del Prisionero':
+                                peor_puntuacion = 'cooperar'
+                            elif session.minijuego_actual == 'Doble o Nada':
+                                peor_puntuacion = 0
+                            
+                            print(f"DEBUG: Timeout Minijuego. Forzando peor score para {p_id}")
+                            await self.process_action(game_id, p_id, "score_minijuego", {"score": peor_puntuacion})
+                            
+            elif expected_state == "poker_accion":
+                if getattr(session, "minijuego_actual", None) == "Mano de Poker":
+                    if "jugadores_activos" in session.poker and user in session.poker["jugadores_activos"]:
+                        if session.poker.get("turnoDe") == user or session.poker["jugadores_activos"][session.poker["turno"]] == user:
+                            print(f"DEBUG: Timeout Poker. Forzando retirada para {user}")
+                            await self.process_action(game_id, user, "poker_accion", {"decision": "retirarse", "cantidad": 0})
+                            
+            else:
+                turno_actual = session.board_state.get("turn")
+                orden_user = session.board_state.get("order", {}).get(user)
+                print(f"DEBUG: Ejecutando salto de turno para {user}")
+                await self.process_action(game_id, user, "saltar_turno")
         except asyncio.CancelledError:
-            # La tarea fue cancelada porque el jugador movió a tiempo
             pass
 
     async def connect(self, websocket: WebSocket, game_id: int, player_id: str):
@@ -113,6 +150,60 @@ class GameManager:
 
         elif game_id not in self.active_games:  # Se ha conectado el primer jugador por lo que creamos la sesión de juego
             self.active_games[game_id] = GameSession(game_id)
+
+            # Reconstrucción global: recuperamos TODOS los jugadores de la BD de golpe
+            session_init = self.active_games[game_id]
+            from database import get_db_connection
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT nombre_jugador, casilla, dinero, personaje, numero FROM PARTIDAS.JUGANDO WHERE id_partida = %s ORDER BY numero ASC", (game_id,))
+                jugadores_db = cursor.fetchall()
+                
+                # Recuperamos también el turno actual de la partida
+                cursor.execute("SELECT turno FROM PARTIDAS.PARTIDA_ACTIVA WHERE id = %s", (game_id,))
+                partida_db = cursor.fetchone()
+                turno_actual_db = partida_db["turno"] if partida_db else 0
+
+                if jugadores_db:
+                    if "positions" not in session_init.board_state:
+                        session_init.board_state["positions"] = {}
+                        session_init.board_state["balances"] = {}
+                        session_init.board_state["characters"] = {}
+                        session_init.board_state["order"] = {}
+                        session_init.board_state["penalty_turns"] = {}
+                        session_init.board_state["dice_levels"] = {}
+                        session_init.board_state["turn"] = turno_actual_db if turno_actual_db > 0 else 1
+                        session_init.board_state["round"] = 1
+                        session_init.penalizacion_pendiente = {}
+
+                    for idx, j in enumerate(jugadores_db):
+                        p_name = j["nombre_jugador"]
+                        if p_name not in session_init.players_id:
+                            session_init.players_id.append(p_name)
+                        session_init.board_state["positions"][p_name] = j["casilla"]
+                        session_init.board_state["balances"][p_name] = j["dinero"]
+                        session_init.board_state["order"][p_name] = idx + 1
+                        session_init.board_state["penalty_turns"][p_name] = 0
+                        session_init.board_state["dice_levels"][p_name] = 4
+                        session_init.penalizacion_pendiente[p_name] = 0
+                        if j["personaje"]:
+                            session_init.board_state["characters"][p_name] = j["personaje"]
+
+                    if turno_actual_db > 0:
+                        session_init.status = "PLAYING"
+                        # Generar dados de emergencia para la ronda actual en curso
+                        for p in jugadores_db:
+                            p_name = p["nombre_jugador"]
+                            level = session_init.board_state["dice_levels"].get(p_name, 4)
+                            dadoizq, dadoder, _ = tirarDados(level)
+                            session_init.dados["izq"].append(dadoizq)
+                            session_init.dados["der"].append(dadoder)
+                    elif len(jugadores_db) == MAX_JUGADORES:
+                        session_init.status = "PLAYING"
+            finally:
+                cursor.close()
+                conn.close()
         
         # Verificamos que el usuario este asociado a la partida en la BD
         if not jugador_en_partida(player_id, game_id):
@@ -122,33 +213,30 @@ class GameManager:
 
         session = self.active_games[game_id]
 
-        if player_id not in session.players_id:
+        # Consideramos reconexión si el jugador ya está en la lista de jugadores de la sesión (recuperada de BD)
+        reconnect = player_id in session.players_id
+
+        if not reconnect:
+            if session.is_full or session.status != "WAITING":
+                eliminar_jugador_partida(player_id, game_id)
+                await websocket.send_json({"error": "La partida está llena o ya ha comenzado"})
+                await websocket.close()
+                return False
+            # Si es nuevo y hay hueco, lo añadimos
             session.players_id.append(player_id)
 
-        reconnect = player_id in session.players
-
-        # Verificar que el usuario no esta conectado desde otro dispositvo
-
-        if reconnect:
+        # Si ya estaba conectado desde otro socket, lo cerramos
+        if player_id in session.players:
             old_socket = session.players[player_id]
             if old_socket is not None:
-                try:            
-
+                try:
                     await old_socket.send_json({
                         "type": "force_disconnect",
-                        "message": "Nueva conexion desde otro dispositivo"
+                        "message": "Nueva conexión desde otro dispositivo"
                     })
                     await old_socket.close()
                 except:
                     pass
-
-        # Verficar que la partida no esta llena ni empezada
-
-        if not reconnect and (session.is_full or session.status != "WAITING"):
-            eliminar_jugador_partida(player_id, game_id) # Eliminamos al jugador de la partida en la BD para que no haya problemas
-            await websocket.send_json({"error": "La partida esta llena"})
-            await websocket.close()
-            return False
 
         session.players[player_id] = websocket
 
@@ -173,30 +261,43 @@ class GameManager:
             session.poker["jugador_apuesta_maxima_ronda"] = None
             session.poker["turno"] = 0
             
-        if player_id not in session.board_state["positions"]:
-                    session.board_state["positions"][player_id] = 0 # Todos los jugadores empiezan en la casilla 0
-                    session.board_state["balances"][player_id] = 1
-                    session.board_state["order"][player_id] = len(session.players)
-                    session.board_state["penalty_turns"][player_id] = 0 # Inicializado a 0
-                    session.board_state["dice_levels"][player_id] = 4   # Todos empiezan con dado normal (4)
-                    session.penalizacion_pendiente[player_id] = 0 # Inicializamos la penalización pendiente a 0 para el jugador que se conecta
+        if player_id not in session.board_state.get("positions", {}):
+            session.board_state["positions"][player_id] = 0
+            session.board_state["balances"][player_id] = 1
+            session.board_state["order"][player_id] = len(session.players)
+            session.board_state["penalty_turns"][player_id] = 0
+            session.board_state["dice_levels"][player_id] = 4
+            session.penalizacion_pendiente[player_id] = 0
 
 
         if reconnect:
+            session.ha_movido_en_turno = False
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
-            await websocket.send_json({
-                "type": "reconnect_success",
-                "game_status": session.status,
-                "current_board": session.board_state,
-                
-                # Buscamos en la sesión si hay algún minijuego activo ahora (si no hay ninguno, envía None)
-                "minijuego_actual": getattr(session, "minijuego_actual", None),
-                
-                # Comprueba si el nombre del jugador está dentro de la lista de participantes de ese minijuego
-                # Normalmente simepr devolvemos False, pero por si al final queremos dejar pasar algún caso 
-                # (como una reconexión corta por flalo wifi)
-                "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
-            })
+            if session.status != "WAITING":
+                await websocket.send_json({
+                    "type": "reconnect_success",
+                    "game_status": session.status,
+                    "current_board": session.board_state,
+                    "minijuego_actual": getattr(session, "minijuego_actual", None),
+                    "minijuego_tipo": getattr(session, "minijuego_tipo", None),
+                    "minijuego_detalles": getattr(session, "minijuego_detalles", None),
+                    "opciones_videojugador": getattr(session, "opciones_videojugador", None),
+                    "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
+                })
+
+            # Enviar información del turno actual para desbloquear el HUD del jugador reconectado
+            current_turn = session.board_state.get("turn")
+            if current_turn is not None:
+                jugador_turno = next(
+                    (p_id for p_id, pos in session.board_state["order"].items() if pos == current_turn),
+                    None
+                )
+                if jugador_turno:
+                    await websocket.send_json({
+                        "type": "turno_de",
+                        "nombre_jugador": jugador_turno,
+                        "ronda": session.board_state.get("round", 1)
+                    })
         else:
             # Lógica normal para nuevos jugadores
             await session.broadcast({
@@ -270,26 +371,27 @@ class GameManager:
                     })
                     
                     if getattr(session, "minijuego_actual", None) is not None:
-                        # Si estaba participando en el minijuego, lo sacamos
+                        # Si estaba participando en el minijuego, simulamos la peor puntuación para no bloquear a los demás
                         if player_id in session.minijuego_participantes:
-                            session.minijuego_participantes.remove(player_id)
-                            
-                            # Si además jugaba al póker, lo quitamos de la mesa
-                            if "jugadores_activos" in session.poker and player_id in session.poker["jugadores_activos"]:
-                                session.poker["jugadores_activos"].remove(player_id)
-
-                            # Comprobamos si quedaba alguien jugando el minijuego
-                            if len(session.minijuego_participantes) > 0:
-                                # Si quedaba alguien, comprobamos si todos los que están en el minijuego actual han terminado ya
-                                # (Por si el jugador qeu se ha salido era el último que quedaba y ha salido antes)
-                                if all(p in session.minijuego_scores for p in session.minijuego_participantes):
-                                    await resolver_minijuego(session)
+                            if session.minijuego_actual == "Mano de Poker":
+                                if "jugadores_activos" in session.poker and player_id in session.poker["jugadores_activos"]:
+                                    await self.process_action(game_id, player_id, "poker_accion", {"decision": "retirarse", "cantidad": 0})
                             else:
-                                # Si era un minijuego de 1 persona (doble o nada), cancelamos minijuego 
-                                # (al salir ya se ha borrado de la lista de jugadores, pero se queda el minijuego activo)
-                                session.minijuego_actual = None
-                                session.minijuego_participantes = []
-                                session.minijuego_scores = {}
+                                if player_id not in session.minijuego_scores:
+                                    peor_puntuacion = 0
+                                    if session.minijuego_actual == 'Reflejos':
+                                        peor_puntuacion = 99999
+                                    elif session.minijuego_actual == 'Mayor o Menor':
+                                        peor_puntuacion = -1
+                                    elif session.minijuego_tipo == 'orden':
+                                        peor_puntuacion = 99999
+                                    elif session.minijuego_actual == 'Dilema del Prisionero':
+                                        peor_puntuacion = 'cooperar'
+                                    elif session.minijuego_actual == 'Doble o Nada':
+                                        peor_puntuacion = 0
+
+                                    # Simulamos que manda el peor score para que no bloquee a los demás
+                                    await self.process_action(game_id, player_id, "score_minijuego", {"score": peor_puntuacion})
 
                 elif session.status == "ENDING":
                     del session.players[player_id]  # Eliminamos al jugador desconectado
@@ -455,6 +557,8 @@ class GameManager:
                         session.minijuego_actual = extra
                         session.minijuego_tipo = "casilla"
                         session.minijuego_participantes = jugadores_en_casilla
+                        session.cancel_afk_task()
+                        session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, "all", "score_minijuego"))
                     
                     elif extra == "Doble o Nada":
                         session.minijuego_actual = extra
@@ -465,6 +569,8 @@ class GameManager:
                             "minijuego": extra,
                             "descripcion": obtener_descripcion_minijuego_casilla(extra)
                         })
+                        session.cancel_afk_task()
+                        session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, user, "score_minijuego"))
                     elif extra == "Mano de Poker":
                         session.minijuego_actual = extra
                         session.minijuego_tipo = "casilla"
@@ -487,6 +593,10 @@ class GameManager:
                                 "descripcion": obtener_descripcion_minijuego_casilla(extra)
                             })
                             await iniciar_poker_real(session)
+                            if len(session.minijuego_participantes) >= 2:
+                                primero = session.poker["jugadores_activos"][0]
+                                session.cancel_afk_task()
+                                session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, primero, "poker_accion"))
 
                 if tipo_casilla == 'obj':
                     # Tenemos que avisar al frontend del objeto que ha caído
@@ -577,11 +687,13 @@ class GameManager:
                 
             case "select_mini":
                 if session.board_state["characters"].get(user) == "Videojugador":   # Si el user es el videojugador, iniciamos minijuego
+                    session.cancel_afk_task()
+                    session.opciones_videojugador = None
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
-                    #Solo incluimos en el minijuego a los jugadores que están conectados
-                    session.minijuego_participantes =[p_id for p_id, ws in session.players.items() if ws is not None]
+                    # Incluimos a TODOS los jugadores de la sesión para que el timeout AFK pueda procesar a los desconectados
+                    session.minijuego_participantes = list(session.players.keys())
                     session.minijuego_tipo = "orden"
 
                     match minijuego:
@@ -609,6 +721,8 @@ class GameManager:
                         # que se han repartido a los jugadores
                         "detalles": session.minijuego_detalles
                     })
+                    session.cancel_afk_task()
+                    session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, "all", "score_minijuego"))
                         
             case "banquero":
                 if session.board_state["characters"].get(user) == "Banquero":
@@ -781,6 +895,11 @@ class GameManager:
                     "type": "turno_poker",
                     "nombre_jugador": siguiente_jugador
                 })
+
+                if getattr(session, "minijuego_actual", None) == "Mano de Poker" and session.poker.get("jugadores_activos"):
+                    siguiente_jugador = session.poker["jugadores_activos"][session.poker["turno"]]
+                    session.cancel_afk_task()
+                    session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, siguiente_jugador, "poker_accion"))
 
             case "debug_force_poker":
                 # Inyectar monedas primero para que puedan jugar
@@ -980,14 +1099,14 @@ class GameManager:
                         "penalizacion": session.board_state["penalty_turns"][user]
                     })
 
-                if session.board_state["turn"] == len(session.players):
+                if session.board_state["turn"] == len(session.players_id):
                     session.board_state["turn"] = 0 # Lo ponemos a 0 para que al sumarle 1 después sea 1
                     session.board_state["round"] += 1 
 
                     session.dados["izq"] = []
                     session.dados["der"] = []
                     sumas = []
-                    for i in range(len(session.players)):
+                    for i in range(len(session.players_id)):
                         turn_order = i + 1
                         p_id = next(uid for uid, order in session.board_state["order"].items() if order == turn_order)
                         
@@ -1040,19 +1159,22 @@ class GameManager:
                                 })
                         
                         if personaje == "Videojugador":
+                            hay_videojugador = True
                             ws_video = session.players.get(p_id)
-                            # Solo activa el minijuego si el Videojugador sigue conectado
+                            minijuegos = listar_minijuegos_eleccion()
+                            dos_minijuegos = random.sample(minijuegos, 2)
+                            session.opciones_videojugador = dos_minijuegos
+
                             if ws_video is not None:
-                                hay_videojugador = True
-                                minijuegos = listar_minijuegos_eleccion()
-                                dos_minijuegos = random.sample(minijuegos, 2)
                                 await ws_video.send_json({
                                     "type": "choose_minijuego",
                                     "minijuegos": dos_minijuegos
                                 })
                             else:
-                                print(f"DEBUG: El videojugador {p_id} está desconectado. Saltando minijuego.")
-                                # Al no poner hay_videojugador = True, el juego continuará automáticamente
+                                print(f"DEBUG: El videojugador {p_id} está desconectado. Iniciando timer de AFK igualmente para que elija automático.")
+
+                            session.cancel_afk_task()
+                            session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, p_id, "select_mini"))
                     
                     # Si no hay Videojugador (o el que había se ha desconectado), la ronda arranca automáticamente
                     if not hay_videojugador:
@@ -1098,6 +1220,7 @@ class GameManager:
                             })
                             session.cancel_afk_task()
                             session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, playerId, "mover"))
+                            print(f"[SESSION] Turno avanzado a {playerId} (Turno {session.board_state['turn']}, Ronda {session.board_state['round']})")
                             turno_avanzado = True
                             break
 

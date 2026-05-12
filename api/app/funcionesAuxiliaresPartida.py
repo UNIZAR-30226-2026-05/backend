@@ -131,3 +131,16 @@ def eliminar_jugador_partida(player_id: str, game_id: int):
     finally:
         cursor.close()
         conn.close()
+
+# Obtener la partida activa de un usuario (si existe)
+def obtener_partida_activa_usuario(player_id: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = "SELECT id_partida FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s"
+        cursor.execute(query, (player_id,))
+        resultado = cursor.fetchone()
+        return resultado["id_partida"] if resultado else None
+    finally:
+        cursor.close()
+        conn.close()

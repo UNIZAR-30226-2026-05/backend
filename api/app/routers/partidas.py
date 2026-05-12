@@ -1,5 +1,6 @@
 from schemas import JoinPartida
 from database import get_db_connection
+from funcionesAuxiliaresPartida import jugador_en_partida
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from .usuarios import obtener_usuario_actual
@@ -41,6 +42,35 @@ def obtener_partidas_activas():
         raise HTTPException(status_code=500, detail=str(e))
 
 # ---------------------------------------------------------
+# PARTIDA ACTIVA DEL JUGADOR (GET) - Protegido con token
+# ---------------------------------------------------------
+@router.get("/mi_partida")
+def obtener_mi_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
+    """
+    Comprueba si el usuario está actualmente en una partida activa y devuelve su ID y estado.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            SELECT j.id_partida, p.turno 
+            FROM PARTIDAS.JUGANDO j
+            JOIN PARTIDAS.PARTIDA_ACTIVA p ON j.id_partida = p.id
+            WHERE j.nombre_jugador = %s
+        """
+        cursor.execute(query, (usuario_actual,))
+        resultado = cursor.fetchone()
+        if resultado:
+            estado = "WAITING" if resultado["turno"] == 0 else "PLAYING"
+            return {"game_id": resultado["id_partida"], "estado": estado}
+        return {"game_id": None, "estado": None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
+# ---------------------------------------------------------
 # CREAR PARTIDA (POST)
 # ---------------------------------------------------------
 @router.post("/crear_partida", status_code=status.HTTP_201_CREATED, response_model=int)
@@ -68,7 +98,7 @@ def crear_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
 
         # Asignar el jugador a la partida creada
         query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
-                                "VALUES (%s, %s, NULL, 0, 1, 1)"
+                                "VALUES (%s, %s, NULL, 1, 0, 1)"
 
         cursor.execute(query_crear_jugando, (usuario_actual, nueva_partida_id,))
 
@@ -120,6 +150,11 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
         if not resultado_partida:
             raise HTTPException(status_code=404, detail="Partida no encontrada")
         
+        # Si el jugador ya está en esta partida (reconexión), no hacemos INSERT
+        # para evitar que el trigger de la BD resetee su progreso
+        if jugador_en_partida(usuario_actual, datos.id_partida):
+            return datos.id_partida
+
         query_conteo = "SELECT COUNT(*) as num_jugadores FROM PARTIDAS.JUGANDO WHERE id_partida = %s"
         cursor.execute(query_conteo, (datos.id_partida,))
         resultado_conteo = cursor.fetchone()
@@ -130,7 +165,7 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
 
         # Asignar el jugador a la partida creada
         query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
-                                "VALUES (%s, %s, NULL, 0, 1, 1)"
+                                "VALUES (%s, %s, NULL, 1, 1, 1)"
 
         cursor.execute(query_crear_jugando, (usuario_actual, datos.id_partida,))
 
