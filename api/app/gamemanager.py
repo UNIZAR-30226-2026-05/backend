@@ -279,6 +279,9 @@ class GameManager:
                     "game_status": session.status,
                     "current_board": session.board_state,
                     "minijuego_actual": getattr(session, "minijuego_actual", None),
+                    "minijuego_tipo": getattr(session, "minijuego_tipo", None),
+                    "minijuego_detalles": getattr(session, "minijuego_detalles", None),
+                    "opciones_videojugador": getattr(session, "opciones_videojugador", None),
                     "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
                 })
 
@@ -685,6 +688,7 @@ class GameManager:
             case "select_mini":
                 if session.board_state["characters"].get(user) == "Videojugador":   # Si el user es el videojugador, iniciamos minijuego
                     session.cancel_afk_task()
+                    session.opciones_videojugador = None
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
@@ -1155,22 +1159,22 @@ class GameManager:
                                 })
                         
                         if personaje == "Videojugador":
+                            hay_videojugador = True
                             ws_video = session.players.get(p_id)
-                            # Solo activa el minijuego si el Videojugador sigue conectado
+                            minijuegos = listar_minijuegos_eleccion()
+                            dos_minijuegos = random.sample(minijuegos, 2)
+                            session.opciones_videojugador = dos_minijuegos
+
                             if ws_video is not None:
-                                hay_videojugador = True
-                                minijuegos = listar_minijuegos_eleccion()
-                                dos_minijuegos = random.sample(minijuegos, 2)
-                                session.opciones_videojugador = dos_minijuegos
                                 await ws_video.send_json({
                                     "type": "choose_minijuego",
                                     "minijuegos": dos_minijuegos
                                 })
-                                session.cancel_afk_task()
-                                session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, p_id, "select_mini"))
                             else:
-                                print(f"DEBUG: El videojugador {p_id} está desconectado. Saltando minijuego.")
-                                # Al no poner hay_videojugador = True, el juego continuará automáticamente
+                                print(f"DEBUG: El videojugador {p_id} está desconectado. Iniciando timer de AFK igualmente para que elija automático.")
+
+                            session.cancel_afk_task()
+                            session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, p_id, "select_mini"))
                     
                     # Si no hay Videojugador (o el que había se ha desconectado), la ronda arranca automáticamente
                     if not hay_videojugador:
