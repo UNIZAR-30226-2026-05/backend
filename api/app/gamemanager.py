@@ -187,8 +187,7 @@ class GameManager:
                 "type": "reconnect_success",
                 "game_status": session.status,
                 "current_board": session.board_state,
-                
-                # Buscamos en la sesión si hay algún minijuego activo ahora (si no hay ninguno, envía None)
+                "active_player": session.active_player_name,
                 "minijuego_actual": getattr(session, "minijuego_actual", None),
                 
                 # Comprueba si el nombre del jugador está dentro de la lista de participantes de ese minijuego
