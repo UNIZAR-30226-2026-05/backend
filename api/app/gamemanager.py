@@ -1079,10 +1079,15 @@ class GameManager:
                             break
 
                     if not turno_avanzado:
-                        # Si no hay nadie más conectado en esta ronda, forzamos fin de ronda (aunque no debería pasar)
-                        session.board_state["turn"] = len(session.players_id)
-                        asyncio.create_task(self.process_action(game_id, user, "fin_turno"))
-                        # El próximo fin_turno disparará el if de arriba
+                        # Si los últimos jugadores de la ronda están desconectados, forzamos fin de ronda
+                        ultimo_turno = len(session.players_id)
+                        session.board_state["turn"] = ultimo_turno
+                        
+                       # Buscamos quién es el jugador que tiene ese último turno para pasar el sistema de seguridad
+                        ultimo_jugador = next((p_id for p_id, pos in session.board_state["order"].items() if pos == ultimo_turno), user)
+                        
+                        asyncio.create_task(self.process_action(game_id, ultimo_jugador, "fin_turno"))
+                        # El próximo fin_turno se ejecutará en nombre del último jugador y disparará el fin de ronda
             case "saltar_turno":
                 await session.broadcast({
                     "type": "timeout_skip",
