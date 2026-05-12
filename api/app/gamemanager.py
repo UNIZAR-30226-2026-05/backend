@@ -1040,11 +1040,10 @@ class GameManager:
                                 })
                         
                         if personaje == "Videojugador":
-                            hay_videojugador = True
                             ws_video = session.players.get(p_id)
-                            
+                            # Solo activa el minijuego si el Videojugador sigue conectado
                             if ws_video is not None:
-                                
+                                hay_videojugador = True
                                 minijuegos = listar_minijuegos_eleccion()
                                 dos_minijuegos = random.sample(minijuegos, 2)
                                 await ws_video.send_json({
@@ -1052,37 +1051,21 @@ class GameManager:
                                     "minijuegos": dos_minijuegos
                                 })
                             else:
-                                # El Videojugador se ha ido: El servidor elige un minijuego al azar
-                                minijuegos = listar_minijuegos_eleccion()
-                                minijuego_elegido = random.choice(minijuegos)
-                                
-                                session.minijuego_actual = minijuego_elegido
-                                # Metemos solo a los jugadores que siguen conectados
-                                session.minijuego_participantes = [pid for pid, ws in session.players.items() if ws is not None]
-                                session.minijuego_tipo = "orden"
-                                # Configuramos los detalles matemáticos del minijuego elegido
-                                match minijuego_elegido:
-                                    case "Tren":
-                                        vagones, total_pasajeros = sortear_vagones()
-                                        session.minijuego_detalles = {"objetivo": total_pasajeros, "vagones": vagones}
-                                    case "Reflejos":
-                                        session.minijuego_detalles = {"objetivo": random.randint(2000, 5000)}
-                                    case "Mayor o Menor":
-                                        session.minijuego_detalles = {"cartas": [v + random.randint(0, 3) * 13 for v in random.sample(range(13), 4)]}
-                                    case "Cronometro ciego":
-                                        session.minijuego_detalles = {"objetivo": random.randint(7, 10)}
-                                    case "Cortar pan":
-                                        session.minijuego_detalles = {"objetivo": 50}
-
-                                # Arrancamos el minijuego para todos los que siguen vivos
-                                await session.broadcast({
-                                    "type": "ini_minijuego",
-                                    "minijuego": minijuego_elegido,
-                                    "descripcion": "Elegido por el servidor (Videojugador desconectado)",
-                                    "estado_partida": session.board_state,
-                                    "detalles": session.minijuego_detalles
-                                })
-                                
+                                print(f"DEBUG: El videojugador {p_id} está desconectado. Saltando minijuego.")
+                                # Al no poner hay_videojugador = True, el juego continuará automáticamente
+                    
+                    # Si no hay Videojugador (o el que había se ha desconectado), la ronda arranca automáticamente
+                    if not hay_videojugador:
+                        session.board_state["turn"] = 1
+                        first_player = next((p_id for p_id, pos in session.board_state["order"].items() if pos == 1), None)
+                        if first_player:
+                            await session.broadcast({
+                                "type": "turno_de",
+                                "nombre_jugador": first_player,
+                                "ronda": session.board_state["round"]
+                            })
+                            session.cancel_afk_task()
+                            session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, first_player, "mover"))
                 else:
                     # Aplicar penalizaciones pendientes de objetos (Barrera) al finalizar el turno
                     for p_id, count in session.penalizacion_pendiente.items():
