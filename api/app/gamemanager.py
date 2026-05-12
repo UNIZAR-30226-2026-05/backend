@@ -122,6 +122,12 @@ class GameManager:
             try:
                 cursor.execute("SELECT nombre_jugador, casilla, dinero, personaje, numero FROM PARTIDAS.JUGANDO WHERE id_partida = %s ORDER BY numero ASC", (game_id,))
                 jugadores_db = cursor.fetchall()
+                
+                # Recuperamos también el turno actual de la partida
+                cursor.execute("SELECT turno FROM PARTIDAS.PARTIDA_ACTIVA WHERE id = %s", (game_id,))
+                partida_db = cursor.fetchone()
+                turno_actual_db = partida_db["turno"] if partida_db else 0
+
                 if jugadores_db:
                     if "positions" not in session_init.board_state:
                         session_init.board_state["positions"] = {}
@@ -130,7 +136,7 @@ class GameManager:
                         session_init.board_state["order"] = {}
                         session_init.board_state["penalty_turns"] = {}
                         session_init.board_state["dice_levels"] = {}
-                        session_init.board_state["turn"] = 1
+                        session_init.board_state["turn"] = turno_actual_db if turno_actual_db > 0 else 1
                         session_init.board_state["round"] = 1
                         session_init.penalizacion_pendiente = {}
 
@@ -147,7 +153,9 @@ class GameManager:
                         if j["personaje"]:
                             session_init.board_state["characters"][p_name] = j["personaje"]
 
-                    if len(jugadores_db) == MAX_JUGADORES:
+                    if turno_actual_db > 0:
+                        session_init.status = "PLAYING"
+                    elif len(jugadores_db) == MAX_JUGADORES:
                         session_init.status = "PLAYING"
             finally:
                 cursor.close()
@@ -161,8 +169,8 @@ class GameManager:
 
         session = self.active_games[game_id]
 
-        # Consideramos reconexión si el jugador ya tiene socket activo o la partida está en curso
-        reconnect = (player_id in session.players and session.players[player_id] is not None) or session.status in ["PLAYING", "ENDING"]
+        # Consideramos reconexión si el jugador ya está en la lista de jugadores de la sesión (recuperada de BD)
+        reconnect = player_id in session.players_id
 
         if not reconnect:
             if session.is_full or session.status != "WAITING":
@@ -219,18 +227,16 @@ class GameManager:
 
 
         if reconnect:
+            session.ha_movido_en_turno = False
             # Le avisamos al jugador que ha vuelto con éxito y el estado actual
-            await websocket.send_json({
-                "type": "reconnect_success",
-                "game_status": session.status,
-                "current_board": session.board_state,
-                "minijuego_actual": getattr(session, "minijuego_actual", None),
-                
-                # Comprueba si el nombre del jugador está dentro de la lista de participantes de ese minijuego
-                # Normalmente simepr devolvemos False, pero por si al final queremos dejar pasar algún caso 
-                # (como una reconexión corta por flalo wifi)
-                "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
-            })
+            if session.status != "WAITING":
+                await websocket.send_json({
+                    "type": "reconnect_success",
+                    "game_status": session.status,
+                    "current_board": session.board_state,
+                    "minijuego_actual": getattr(session, "minijuego_actual", None),
+                    "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
+                })
 
             # Enviar información del turno actual para desbloquear el HUD del jugador reconectado
             current_turn = session.board_state.get("turn")

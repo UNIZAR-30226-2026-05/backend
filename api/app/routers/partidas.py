@@ -165,7 +165,7 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
 
         # Asignar el jugador a la partida creada
         query_crear_jugando = "INSERT INTO PARTIDAS.JUGANDO (nombre_jugador, id_partida, personaje, dinero, casilla, numero) " \
-                                "VALUES (%s, %s, NULL, 1, 0, 1)"
+                                "VALUES (%s, %s, NULL, 1, 1, 1)"
 
         cursor.execute(query_crear_jugando, (usuario_actual, datos.id_partida,))
 
