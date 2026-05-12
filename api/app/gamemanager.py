@@ -197,8 +197,8 @@ class GameManager:
                 "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", []),
 
                 # Flag para que el frontend muestre pantalla de "Reconectando..." y bloquee interacciones
-                # hasta recibir el siguiente turno_de o ini_minijuego
-                "sincronizando": True
+                # solo si la partida ya está en marcha (PLAYING).
+                "sincronizando": session.status == "PLAYING"
             })
         else:
             # Lógica normal para nuevos jugadores
