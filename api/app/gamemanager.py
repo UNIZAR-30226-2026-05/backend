@@ -1027,23 +1027,45 @@ class GameManager:
                         "round": session.board_state["round"]
                     })
 
-                        
+                    hay_videojugador = False    
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
                         if personaje == "Vidente":
-                            await session.players.get(p_id).send_json({
-                                "type": "dice_shown",
-                                "punt": sumas
-                            })
+                            ws_vidente = session.players.get(p_id)
+                            # Solo le enviamos el mensaje si sigue conectado
+                            if ws_vidente is not None:
+                                await ws_vidente.send_json({
+                                    "type": "dice_shown",
+                                    "punt": sumas
+                                })
                         
                         if personaje == "Videojugador":
-                            minijuegos = listar_minijuegos_eleccion()
-                            dos_minijuegos = random.sample(minijuegos, 2)
-
-                            await session.players.get(p_id).send_json({
-                                "type": "choose_minijuego",
-                                "minijuegos": dos_minijuegos
+                            ws_video = session.players.get(p_id)
+                            # Solo activa el minijuego si el Videojugador sigue conectado
+                            if ws_video is not None:
+                                hay_videojugador = True
+                                minijuegos = listar_minijuegos_eleccion()
+                                dos_minijuegos = random.sample(minijuegos, 2)
+                                await ws_video.send_json({
+                                    "type": "choose_minijuego",
+                                    "minijuegos": dos_minijuegos
+                                })
+                            else:
+                                print(f"DEBUG: El videojugador {p_id} está desconectado. Saltando minijuego.")
+                                # Al no poner hay_videojugador = True, el juego continuará automáticamente
+                    
+                    # Si no hay Videojugador (o el que había se ha desconectado), la ronda arranca automáticamente
+                    if not hay_videojugador:
+                        session.board_state["turn"] = 1
+                        first_player = next((p_id for p_id, pos in session.board_state["order"].items() if pos == 1), None)
+                        if first_player:
+                            await session.broadcast({
+                                "type": "turno_de",
+                                "nombre_jugador": first_player,
+                                "ronda": session.board_state["round"]
                             })
+                            session.cancel_afk_task()
+                            session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, first_player, "mover"))
                 else:
                     # Aplicar penalizaciones pendientes de objetos (Barrera) al finalizar el turno
                     for p_id, count in session.penalizacion_pendiente.items():
