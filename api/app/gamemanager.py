@@ -81,30 +81,26 @@ class GameManager:
         self.active_games: dict[int, GameSession] = {}
 
     async def handle_afk_timeout(self, game_id: int, user: str, expected_state: str):
-        await asyncio.sleep(25)
-        session = self.active_games.get(game_id)
-        if not session:
-            return
+        try:
+            await asyncio.sleep(25) # Tiempo de espera
+            
+            session = self.active_games.get(game_id)
+            if not session or session.status != "PLAYING":
+                return
 
-        # Verificar que el user sigue siendo el jugador activo
-        turno_actual = session.board_state.get("turn")
-        orden_user = session.board_state.get("order", {}).get(user)
-        if orden_user != turno_actual:
-            print(f"AFK Timeout: {user} ya no es el jugador activo (orden={orden_user}, turno={turno_actual}). Ignorando.")
-            return
+            turno_actual = session.board_state.get("turn")
+            orden_user = session.board_state.get("order", {}).get(user)
 
-        if expected_state == "mover" and not getattr(session, "ha_movido_en_turno", False):
-            print(f"AFK Timeout (mover): Saltando turno de {user}")
-            await self.process_action(game_id, user, "fin_turno", {})
+            if orden_user != turno_actual:
+                return 
 
-        elif expected_state == "fin_turno" and getattr(session, "ha_movido_en_turno", False):
-            print(f"AFK Timeout (fin_turno): Forzando fin de turno para {user}")
-            await self.process_action(game_id, user, "fin_turno", {})
+            # Disparamos el salto de turno
+            print(f"DEBUG: Ejecutando salto de turno para {user}")
+            await self.process_action(game_id, user, "saltar_turno")
 
-        elif expected_state == "minijuego_orden" and session.minijuego_actual:
-            print(f"AFK Timeout: Asignando peor puntuación a {user} en minijuego de orden")
-            if user not in session.minijuego_scores:
-                await self.process_action(game_id, user, "score_minijuego", {"score": 9999})
+        except asyncio.CancelledError:
+            # La tarea fue cancelada porque el jugador movió a tiempo
+            pass
 
     async def connect(self, websocket: WebSocket, game_id: int, player_id: str):
         await websocket.accept()
@@ -1070,7 +1066,15 @@ class GameManager:
                         # Si no hay nadie más conectado en esta ronda, forzamos fin de ronda (aunque no debería pasar)
                         session.board_state["turn"] = len(session.players_id)
                         # El próximo fin_turno disparará el if de arriba
-                            
+            case "saltar_turno":
+                await session.broadcast({
+                    "type": "timeout_skip",
+                    "user": user,
+                    "message": f"El jugador {user} ha tardado demasiado y pierde el turno."
+                })
+
+                session.ha_movido_en_turno = False 
+                await self.process_action(game_id, user, "fin_turno")
         
                     
                 
