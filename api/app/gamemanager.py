@@ -95,7 +95,7 @@ class GameManager:
             #    return 
 
             # Disparamos el salto de turno
-            print(f"DEBUG: Ejecutando salto de turno para {user}")
+            print(f"[TIMER] AFK Timeout disparado para {user} en estado {expected_state}")
             await self.process_action(game_id, user, "saltar_turno")
 
         except asyncio.CancelledError:
@@ -198,6 +198,7 @@ class GameManager:
                 # solo si la partida ya está en marcha (PLAYING).
                 "sincronizando": session.status == "PLAYING"
             })
+            print(f"[SESSION] Jugador {player_id} RECONECTADO a partida {game_id}. Estado: {session.status}")
         else:
             # Lógica normal para nuevos jugadores
             await session.broadcast({
@@ -981,14 +982,14 @@ class GameManager:
                         "penalizacion": session.board_state["penalty_turns"][user]
                     })
 
-                if session.board_state["turn"] == len(session.players):
+                if session.board_state["turn"] == len(session.players_id):
                     session.board_state["turn"] = 0 # Lo ponemos a 0 para que al sumarle 1 después sea 1
                     session.board_state["round"] += 1 
 
                     session.dados["izq"] = []
                     session.dados["der"] = []
                     sumas = []
-                    for i in range(len(session.players)):
+                    for i in range(len(session.players_id)):
                         turn_order = i + 1
                         p_id = next(uid for uid, order in session.board_state["order"].items() if order == turn_order)
                         
@@ -1099,6 +1100,7 @@ class GameManager:
                             })
                             session.cancel_afk_task()
                             session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, playerId, "mover"))
+                            print(f"[SESSION] Turno avanzado a {playerId} (Turno {session.board_state['turn']}, Ronda {session.board_state['round']})")
                             turno_avanzado = True
                             break
 

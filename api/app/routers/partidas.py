@@ -43,23 +43,32 @@ def obtener_partidas_activas():
 # ---------------------------------------------------------
 # PARTIDA ACTIVA DEL JUGADOR (GET) - Protegido con token
 # ---------------------------------------------------------
-@router.get("/mi_partida", response_model=int)
+@router.get("/mi_partida")
 def mi_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
     """
-    Devuelve el ID de la partida activa en la que está el usuario autenticado.
+    Devuelve el ID y el estado de la partida activa en la que está el usuario autenticado.
     Si no está en ninguna partida activa, devuelve 404.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        query = "SELECT id_partida FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s LIMIT 1"
+        # Consultamos tanto el ID como el estado de la partida
+        query = """
+            SELECT p.id_partida, p.estado 
+            FROM PARTIDAS.JUGANDO p 
+            WHERE p.nombre_jugador = %s 
+            LIMIT 1
+        """
         cursor.execute(query, (usuario_actual,))
         resultado = cursor.fetchone()
 
         if not resultado:
             raise HTTPException(status_code=404, detail="No estás en ninguna partida activa")
 
-        return resultado['id_partida']
+        return {
+            "game_id": resultado['id_partida'],
+            "estado": resultado['estado']
+        }
 
     except HTTPException:
         raise
