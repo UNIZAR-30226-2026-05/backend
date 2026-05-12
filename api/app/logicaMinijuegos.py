@@ -64,17 +64,6 @@ async def finalizar_minijuego_orden(session):
             "score": puntuacion
         }
 
-    # --- GESTIÓN DE DESCONECTADOS ---
-    # Asignar las últimas posiciones a los jugadore sque se han salido para no romper React ni los turnos
-    posicion_actual = len(ranking) + 1
-    for p_id, ws in session.players.items():
-        if ws is None: # Si está desconectado
-            session.board_state["order"][p_id] = posicion_actual
-            resultados_front[p_id] = {
-                "posicion": posicion_actual,
-                "score": 0 # Puntuación por defecto para que no crashee Vercel
-            }
-            posicion_actual +=1
 
     session.board_state["turn"] = 1
 
