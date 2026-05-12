@@ -2,6 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 from gamemanager import manager
 from sessionmanager import lobby_manager
+from funcionesAuxiliaresPartida import obtener_partida_activa_usuario, existe_partida
 from schemas import PlayerAction
 import traceback
 import jwt
@@ -105,6 +106,14 @@ async def active_session(websocket: WebSocket, user: str, token: str):
 
     # CONEXIÓN AL LOBBY
     await lobby_manager.connect(websocket, player_id)
+
+    # Comprobar si el jugador pertenece a una partida activa (reconexión automática)
+    game_id = obtener_partida_activa_usuario(player_id)
+    if game_id is not None and existe_partida(game_id):
+        await websocket.send_json({
+            "type": "reconnect_game",
+            "game_id": game_id
+        })
     
     try:
         while True:

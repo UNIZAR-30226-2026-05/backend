@@ -1,5 +1,6 @@
 from schemas import JoinPartida
 from database import get_db_connection
+from funcionesAuxiliaresPartida import jugador_en_partida
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from .usuarios import obtener_usuario_actual
@@ -120,6 +121,11 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
         if not resultado_partida:
             raise HTTPException(status_code=404, detail="Partida no encontrada")
         
+        # Si el jugador ya está en esta partida (reconexión), no hacemos INSERT
+        # para evitar que el trigger de la BD resetee su progreso
+        if jugador_en_partida(usuario_actual, datos.id_partida):
+            return datos.id_partida
+
         query_conteo = "SELECT COUNT(*) as num_jugadores FROM PARTIDAS.JUGANDO WHERE id_partida = %s"
         cursor.execute(query_conteo, (datos.id_partida,))
         resultado_conteo = cursor.fetchone()

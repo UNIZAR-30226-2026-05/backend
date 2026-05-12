@@ -197,6 +197,20 @@ class GameManager:
                 # (como una reconexión corta por flalo wifi)
                 "participa_en_minijuego": player_id in getattr(session, "minijuego_participantes", [])
             })
+
+            # Enviar información del turno actual para desbloquear el HUD del jugador reconectado
+            current_turn = session.board_state.get("turn")
+            if current_turn is not None:
+                jugador_turno = next(
+                    (p_id for p_id, pos in session.board_state["order"].items() if pos == current_turn),
+                    None
+                )
+                if jugador_turno:
+                    await websocket.send_json({
+                        "type": "turno_de",
+                        "nombre_jugador": jugador_turno,
+                        "ronda": session.board_state.get("round", 1)
+                    })
         else:
             # Lógica normal para nuevos jugadores
             await session.broadcast({
