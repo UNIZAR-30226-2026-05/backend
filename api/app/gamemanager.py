@@ -82,21 +82,27 @@ class GameManager:
 
     async def handle_afk_timeout(self, game_id: int, user: str, expected_state: str):
         try:
-            await asyncio.sleep(25) # Tiempo de espera
+            tiempo_espera = 12 if expected_state == "select_mini" else 25
+            await asyncio.sleep(tiempo_espera)
             
             session = self.active_games.get(game_id)
             if not session or session.status != "PLAYING":
                 return
 
-            turno_actual = session.board_state.get("turn")
-            orden_user = session.board_state.get("order", {}).get(user)
-
-            #if orden_user != turno_actual:
-            #    return 
-
-            # Disparamos el salto de turno
-            print(f"[TIMER] AFK Timeout disparado para {user} en estado {expected_state}")
-            await self.process_action(game_id, user, "saltar_turno")
+            if expected_state == "select_mini":
+                if getattr(session, "minijuego_actual", None) is None:
+                    opciones = getattr(session, "opciones_videojugador", None)
+                    if opciones:
+                        elegido = opciones[0]
+                        nombre = elegido["nombre"] if isinstance(elegido, dict) else elegido[0]
+                        desc = elegido.get("descripcion", "") if isinstance(elegido, dict) else (elegido[1] if len(elegido) > 1 else "")
+                        print(f"DEBUG: Timeout Videojugador. Forzando elección: {nombre}")
+                        await self.process_action(game_id, user, "select_mini", {"minijuego": nombre, "descripcion": desc})
+            else:
+                turno_actual = session.board_state.get("turn")
+                orden_user = session.board_state.get("order", {}).get(user)
+                print(f"DEBUG: Ejecutando salto de turno para {user}")
+                await self.process_action(game_id, user, "saltar_turno")
 
         except asyncio.CancelledError:
             # La tarea fue cancelada porque el jugador movió a tiempo
@@ -632,6 +638,7 @@ class GameManager:
                 
             case "select_mini":
                 if session.board_state["characters"].get(user) == "Videojugador":   # Si el user es el videojugador, iniciamos minijuego
+                    session.cancel_afk_task()
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
@@ -1101,10 +1108,13 @@ class GameManager:
                                 hay_videojugador = True
                                 minijuegos = listar_minijuegos_eleccion()
                                 dos_minijuegos = random.sample(minijuegos, 2)
+                                session.opciones_videojugador = dos_minijuegos
                                 await ws_video.send_json({
                                     "type": "choose_minijuego",
                                     "minijuegos": dos_minijuegos
                                 })
+                                session.cancel_afk_task()
+                                session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, p_id, "select_mini"))
                             else:
                                 print(f"DEBUG: El videojugador {p_id} está desconectado. Saltando minijuego.")
                                 # Al no poner hay_videojugador = True, el juego continuará automáticamente
