@@ -150,6 +150,8 @@ async def iniciar_poker_real(session):
     session.poker["bote"] = 0
     session.poker["jugadores_activos"] = list(jugadores_ids)
     session.poker["apuesta_maxima_ronda"] = 0
+    session.poker["apuesta_jugador_ronda"] = {}
+    session.poker["jugador_apuesta_maxima_ronda"] = None
     session.poker["han_actuado"] = []
     session.poker["turno"] = 0
 
@@ -312,15 +314,6 @@ async def resolver_showdown_poker(session):
     await session.broadcast({
         "type": "balances_changed",
         "balances": session.board_state["balances"]
-    })
-
-    session.poker["turno"] = (session.poker["turno"] + 1) % len(session.poker["jugadores_activos"])
-    turno = session.poker["turno"]
-    le_toca = session.poker["jugadores_activos"][turno]
-                
-    await session.broadcast({
-        "type": "turno_poker",
-        "nombre_jugador": le_toca
     })
 
     # Limpieza total del minijuego
