@@ -113,6 +113,45 @@ class GameManager:
 
         elif game_id not in self.active_games:  # Se ha conectado el primer jugador por lo que creamos la sesión de juego
             self.active_games[game_id] = GameSession(game_id)
+
+            # Reconstrucción global: recuperamos TODOS los jugadores de la BD de golpe
+            session_init = self.active_games[game_id]
+            from database import get_db_connection
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT nombre_jugador, casilla, dinero, personaje, numero FROM PARTIDAS.JUGANDO WHERE id_partida = %s ORDER BY numero ASC", (game_id,))
+                jugadores_db = cursor.fetchall()
+                if jugadores_db:
+                    if "positions" not in session_init.board_state:
+                        session_init.board_state["positions"] = {}
+                        session_init.board_state["balances"] = {}
+                        session_init.board_state["characters"] = {}
+                        session_init.board_state["order"] = {}
+                        session_init.board_state["penalty_turns"] = {}
+                        session_init.board_state["dice_levels"] = {}
+                        session_init.board_state["turn"] = 1
+                        session_init.board_state["round"] = 1
+                        session_init.penalizacion_pendiente = {}
+
+                    for idx, j in enumerate(jugadores_db):
+                        p_name = j["nombre_jugador"]
+                        if p_name not in session_init.players_id:
+                            session_init.players_id.append(p_name)
+                        session_init.board_state["positions"][p_name] = j["casilla"]
+                        session_init.board_state["balances"][p_name] = j["dinero"]
+                        session_init.board_state["order"][p_name] = idx + 1
+                        session_init.board_state["penalty_turns"][p_name] = 0
+                        session_init.board_state["dice_levels"][p_name] = 4
+                        session_init.penalizacion_pendiente[p_name] = 0
+                        if j["personaje"]:
+                            session_init.board_state["characters"][p_name] = j["personaje"]
+
+                    if len(jugadores_db) == MAX_JUGADORES:
+                        session_init.status = "PLAYING"
+            finally:
+                cursor.close()
+                conn.close()
         
         # Verificamos que el usuario este asociado a la partida en la BD
         if not jugador_en_partida(player_id, game_id):
@@ -122,10 +161,8 @@ class GameManager:
 
         session = self.active_games[game_id]
 
-        # Consideramos reconexión si el jugador ya estaba en la lista de IDs o tiene posición en el tablero
-        reconnect = player_id in session.players_id or (
-            "positions" in session.board_state and player_id in session.board_state["positions"]
-        )
+        # Consideramos reconexión si el jugador ya tiene socket activo o la partida está en curso
+        reconnect = (player_id in session.players and session.players[player_id] is not None) or session.status in ["PLAYING", "ENDING"]
 
         if not reconnect:
             if session.is_full or session.status != "WAITING":
@@ -172,32 +209,10 @@ class GameManager:
             session.poker["jugador_apuesta_maxima_ronda"] = None
             session.poker["turno"] = 0
             
-        if player_id not in session.board_state["positions"]:
-            from database import get_db_connection
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            try:
-                cursor.execute(
-                    "SELECT casilla, dinero, personaje, numero FROM PARTIDAS.JUGANDO WHERE nombre_jugador = %s AND id_partida = %s",
-                    (player_id, game_id)
-                )
-                datos_db = cursor.fetchone()
-            finally:
-                cursor.close()
-                conn.close()
-
-            if datos_db:
-                session.board_state["positions"][player_id] = datos_db["casilla"]
-                session.board_state["balances"][player_id] = datos_db["dinero"]
-                session.board_state["order"][player_id] = len(session.players)
-                if datos_db["personaje"]:
-                    session.board_state["characters"][player_id] = datos_db["personaje"]
-            else:
-                session.board_state["positions"][player_id] = 0
-                session.board_state["balances"][player_id] = 1
-                session.board_state["order"][player_id] = len(session.players)
-
-            # Mantener las inicializaciones auxiliares necesarias
+        if player_id not in session.board_state.get("positions", {}):
+            session.board_state["positions"][player_id] = 0
+            session.board_state["balances"][player_id] = 1
+            session.board_state["order"][player_id] = len(session.players)
             session.board_state["penalty_turns"][player_id] = 0
             session.board_state["dice_levels"][player_id] = 4
             session.penalizacion_pendiente[player_id] = 0
