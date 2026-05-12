@@ -189,7 +189,7 @@ class GameManager:
             if datos_db:
                 session.board_state["positions"][player_id] = datos_db["casilla"]
                 session.board_state["balances"][player_id] = datos_db["dinero"]
-                session.board_state["order"][player_id] = datos_db["numero"]
+                session.board_state["order"][player_id] = len(session.players)
                 if datos_db["personaje"]:
                     session.board_state["characters"][player_id] = datos_db["personaje"]
             else:
