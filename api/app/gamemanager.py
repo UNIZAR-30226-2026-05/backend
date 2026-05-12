@@ -91,8 +91,8 @@ class GameManager:
             turno_actual = session.board_state.get("turn")
             orden_user = session.board_state.get("order", {}).get(user)
 
-            if orden_user != turno_actual:
-                return 
+            #if orden_user != turno_actual:
+            #    return 
 
             # Disparamos el salto de turno
             print(f"DEBUG: Ejecutando salto de turno para {user}")
@@ -697,7 +697,16 @@ class GameManager:
                 
                 # Comprobamos si todos los que debían jugar han terminado
                 if all(p in session.minijuego_scores for p in session.minijuego_participantes):
+                    tipo_mini = session.minijuego_tipo
                     await resolver_minijuego(session)
+                    
+                    # Si el minijuego decidía el orden, acaba de asignarse el turno 1.
+                    # Encendemos el cronómetro AFK a ese jugador para que no tenga tiempo infinito.
+                    if tipo_mini == "orden":
+                        first_player = next((p_id for p_id, pos in session.board_state["order"].items() if pos == 1), None)
+                        if first_player:
+                            session.cancel_afk_task()
+                            session.afk_task = asyncio.create_task(self.handle_afk_timeout(game_id, first_player, "mover"))
 
             case "poker_accion":
                 decision = payload.get("decision")
@@ -955,10 +964,12 @@ class GameManager:
                 })
             
             case "fin_turno":
-                session.cancel_afk_task()
+                
                 # SEGURIDAD: Ignorar si no es el turno de este jugador
                 if session.board_state["order"].get(user) != session.board_state["turn"]:
                     return
+                session.cancel_afk_task()
+                
                 # Si el jugador actual saltó su turno (no tiró dados) y tenía penalización, la decrementamos
                 if not session.ha_movido_en_turno and session.board_state["penalty_turns"].get(user, 0) > 0:
                     session.board_state["penalty_turns"][user] -= 1
@@ -1015,6 +1026,7 @@ class GameManager:
                         "round": session.board_state["round"]
                     })
 
+                        
                     # Avisamos al visionario
                     for p_id, personaje in session.board_state["characters"].items():
                         if personaje == "Vidente":
@@ -1069,6 +1081,7 @@ class GameManager:
                     if not turno_avanzado:
                         # Si no hay nadie más conectado en esta ronda, forzamos fin de ronda (aunque no debería pasar)
                         session.board_state["turn"] = len(session.players_id)
+                        asyncio.create_task(self.process_action(game_id, user, "fin_turno"))
                         # El próximo fin_turno disparará el if de arriba
             case "saltar_turno":
                 await session.broadcast({
