@@ -681,8 +681,8 @@ class GameManager:
                     minijuego = payload["minijuego"]
                     session.minijuego_actual = minijuego #TEnemos que guardarlo en la sesión también para después saber cómo evaluar las posiciones según el tipo de minijuego
                     descripcion = payload["descripcion"]
-                    #Solo incluimos en el minijuego a los jugadores que están conectados
-                    session.minijuego_participantes =[p_id for p_id, ws in session.players.items() if ws is not None]
+                    # Incluimos a TODOS los jugadores de la sesión para que el timeout AFK pueda procesar a los desconectados
+                    session.minijuego_participantes = list(session.players.keys())
                     session.minijuego_tipo = "orden"
 
                     match minijuego:
