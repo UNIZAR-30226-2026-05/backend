@@ -324,26 +324,27 @@ class GameManager:
                     })
                     
                     if getattr(session, "minijuego_actual", None) is not None:
-                        # Si estaba participando en el minijuego, lo sacamos
+                        # Si estaba participando en el minijuego, simulamos la peor puntuación para no bloquear a los demás
                         if player_id in session.minijuego_participantes:
-                            session.minijuego_participantes.remove(player_id)
-                            
-                            # Si además jugaba al póker, lo quitamos de la mesa
-                            if "jugadores_activos" in session.poker and player_id in session.poker["jugadores_activos"]:
-                                session.poker["jugadores_activos"].remove(player_id)
-
-                            # Comprobamos si quedaba alguien jugando el minijuego
-                            if len(session.minijuego_participantes) > 0:
-                                # Si quedaba alguien, comprobamos si todos los que están en el minijuego actual han terminado ya
-                                # (Por si el jugador qeu se ha salido era el último que quedaba y ha salido antes)
-                                if all(p in session.minijuego_scores for p in session.minijuego_participantes):
-                                    await resolver_minijuego(session)
+                            if session.minijuego_actual == "Mano de Poker":
+                                if "jugadores_activos" in session.poker and player_id in session.poker["jugadores_activos"]:
+                                    await self.process_action(game_id, player_id, "poker_accion", {"decision": "retirarse", "cantidad": 0})
                             else:
-                                # Si era un minijuego de 1 persona (doble o nada), cancelamos minijuego 
-                                # (al salir ya se ha borrado de la lista de jugadores, pero se queda el minijuego activo)
-                                session.minijuego_actual = None
-                                session.minijuego_participantes = []
-                                session.minijuego_scores = {}
+                                if player_id not in session.minijuego_scores:
+                                    peor_puntuacion = 0
+                                    if session.minijuego_actual == 'Reflejos':
+                                        peor_puntuacion = 99999
+                                    elif session.minijuego_actual == 'Mayor o Menor':
+                                        peor_puntuacion = -1
+                                    elif session.minijuego_tipo == 'orden':
+                                        peor_puntuacion = 99999
+                                    elif session.minijuego_actual == 'Dilema del Prisionero':
+                                        peor_puntuacion = 'cooperar'
+                                    elif session.minijuego_actual == 'Doble o Nada':
+                                        peor_puntuacion = 0
+
+                                    # Simulamos que manda el peor score para que no bloquee a los demás
+                                    await self.process_action(game_id, player_id, "score_minijuego", {"score": peor_puntuacion})
 
                 elif session.status == "ENDING":
                     del session.players[player_id]  # Eliminamos al jugador desconectado
