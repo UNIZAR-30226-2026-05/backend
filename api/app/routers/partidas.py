@@ -1,6 +1,6 @@
 from schemas import JoinPartida
 from database import get_db_connection
-from funcionesAuxiliaresPartida import jugador_en_partida
+from funcionesAuxiliaresPartida import jugador_en_partida, eliminar_jugador_partida, obtener_partida_activa_usuario
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from .usuarios import obtener_usuario_actual
@@ -189,6 +189,21 @@ async def unirse_partida(datos: JoinPartida, usuario_actual: str = Depends(obten
         cursor.close()
         conn.close()
 
+
+# ---------------------------------------------------------
+# SALIR DE PARTIDA (DELETE)
+# ---------------------------------------------------------
+@router.delete("/salir_partida", status_code=status.HTTP_200_OK)
+def salir_partida(usuario_actual: str = Depends(obtener_usuario_actual)):
+    """
+    Elimina al usuario de su partida activa (si tiene una).
+    Útil para limpiar sesiones colgadas antes de unirse a una nueva partida.
+    """
+    game_id = obtener_partida_activa_usuario(usuario_actual)
+    if game_id is None:
+        return {"message": "No estás en ninguna partida"}
+    eliminar_jugador_partida(usuario_actual, game_id)
+    return {"message": "Saliste de la partida correctamente"}
 
 # ---------------------------------------------------------
 # PARTIDA ACTUAL
